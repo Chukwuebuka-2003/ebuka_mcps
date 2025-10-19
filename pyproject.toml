@@ -1,0 +1,30 @@
+[project]
+name = "ed-mcp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastmcp>=2.12.3",
+    "llama-index>=0.14.4",
+    "llama-index-core>=0.14.4",
+    "llama-index-embeddings-openai>=0.5.1",
+    "llama-index-llms-openai>=0.6.4",
+    "llama-index-vector-stores-pinecone>=0.7.1",
+    "openai>=1.109.1",
+    "pinecone-client>=6.0.0",
+    "pydantic>=2.11.9",
+    "pyjwt>=2.10.1",
+    "python-dotenv>=1.1.1",
+    "pyyaml>=6.0.2",
+    "rank-bm25>=0.2.2",
+    "ruff>=0.14.0",
+    "azure-storage-blob>=12.19.0",
+    "azure-identity>=1.15.0",
+    "pymupdf>=1.24.0",
+    "python-docx>=1.1.0",
+    "omnicoreagent>=0.2.7",
+    "sqlalchemy",
+    "alembic",
+    "psycopg2-binary",
+]

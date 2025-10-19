@@ -1,0 +1,35 @@
+{
+  "AgentConfig": {
+    "tool_call_timeout": 60,
+    "max_steps": 15,
+    "request_limit": 0,
+    "total_tokens_limit": 0,
+    "tools_results_limit": 10,
+    "tools_similarity_threshold": 0.1,
+    "enable_tools_knowledge_base": false,
+    "memory_config": {
+      "mode": "sliding_window",
+      "value": 100
+    },
+    "memory_results_limit": 5,
+    "memory_similarity_threshold": 0.5
+  },
+  "LLM": {
+    "provider": "openai",
+    "model": "gpt-4.1",
+    "temperature": 0.3,
+    "max_tokens": 5000,
+    "max_context_length": 5000,
+    "top_p": 0.7,
+    "top_k": "N/A"
+  },
+  "mcpServers": {
+    "turtor_rag": {
+      "transport_type": "streamable_http",
+      "url": "http://0.0.0.0:9000/mcp",
+      "headers": {
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJteS1zZXJ2ZXItMDEiLCJleHAiOjE3NjA5NjQ5OTcsImlhdCI6MTc2MDYwNDk5N30.BPgbf35oLo4oclbg6aKMvLI8HI8i7APwvRLhZ2-HEHU"
+      }
+    }
+  }
+}
