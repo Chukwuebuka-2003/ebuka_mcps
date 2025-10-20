@@ -1,0 +1,65 @@
+services:
+  # RAG MCP Server - Provides RAG tools via MCP protocol
+  rag_mcp_server:
+    build:
+      context: .
+      dockerfile: Dockerfile.rag_server
+    container_name: rag_mcp_server
+    ports:
+      - "9000:9000"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PINECONE_ENVIRONMENT=${PINECONE_ENVIRONMENT:-us-east-1}
+      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
+    networks:
+      - tutoring_network
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c ''import urllib.request; urllib.request.urlopen("http://localhost:9000/health")'' || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # MCP Host - Agent orchestration layer
+  mcp_host:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp_host
+    container_name: mcp_host
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
+      - RAG_MCP_SERVER_URL=http://rag_mcp_server:9000/mcp
+    networks:
+      - tutoring_network
+    depends_on:
+      - rag_mcp_server
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c ''import urllib.request; urllib.request.urlopen("http://localhost:8000/docs")'' || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  tutoring_network:
+    driver: bridge
