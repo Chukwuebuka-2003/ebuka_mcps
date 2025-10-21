@@ -1,0 +1,38 @@
+{
+  "AgentConfig": {
+    "agent_name": "TutoringRagAgent",
+    "tool_call_timeout": 60,
+    "max_steps": 15,
+    "request_limit": 0,
+    "total_tokens_limit": 0,
+    "enable_tools_knowledge_base": false,
+    "tools_results_limit": 10,
+    "tools_similarity_threshold": 0.1,
+    "memory_config": {
+      "mode": "sliding_window",
+      "value": 100
+    },
+    "memory_results_limit": 5,
+    "memory_similarity_threshold": 0.5,
+    "memory_tool_backend": "local"
+  },
+  "LLM": {
+    "provider": "openai",
+    "model": "gpt-4.1",
+    "temperature": 0.3,
+    "max_tokens": 5000,
+    "max_context_length": 5000,
+    "top_p": 0.7,
+    "top_k": "N/A"
+  },
+  "mcpServers": {
+    "turtor_rag": {
+      "transport_type": "streamable_http",
+      "url": "http://0.0.0.0:9000/mcp",
+      "timeout": 60,
+      "headers": {
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJteS1zZXJ2ZXItMDEiLCJleHAiOjE3NjEwNzg4MTAsImlhdCI6MTc2MDcxODgxMH0.Y6aWWx9-uy1S4LprE6mDwUzj-py8E1FnN7QHmWHHhpY"
+      }
+    }
+  }
+}

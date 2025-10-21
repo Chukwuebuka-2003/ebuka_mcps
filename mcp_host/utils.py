@@ -1,4 +1,4 @@
-from mcp_host.schemas import UploadMetadata
+from mcp_host.schemas.chats import UploadMetadata
 from fastapi import Form
 from typing import Dict, Any
 

@@ -1,19 +1,17 @@
-from fastmcp import FastMCP
 from typing import Annotated, Optional
 from pydantic import Field
 from fastmcp.tools.tool import ToolResult
 from fastmcp.exceptions import ToolError
 import json
-import base64
-from rag_interface import knowledge_base_retrieval_interface
+from utils.rag_interface import knowledge_base_retrieval_interface
 from fastmcp import FastMCP, Context
 
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from fastmcp.server.dependencies import get_http_headers
-from utils import verify_server_token
+from utils.jwt_util import verify_server_token
 
-from azure_storage import AzureStorageManager
-from file_processor import FileProcessor
+from utils.azure_storage import AzureStorageManager
+from utils.file_processor import FileProcessor
 from rag.system import TutoringRAGSystem
 
 
