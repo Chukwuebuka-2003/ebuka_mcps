@@ -31,4 +31,4 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
 # Run the MCP host application
-CMD ["uvicorn", "mcp_host.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "mcp_host.main:app", "--host", "0.0.0.0", "--port", "8000"]
