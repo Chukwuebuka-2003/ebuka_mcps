@@ -217,7 +217,7 @@ def process_existing_file(
         Field(
             description="Optional custom document title for citations (defaults to filename)"
         ),
-    ] = None,  # NEW: Document title parameter
+    ] = None,  
 ) -> ToolResult:
     """
     Download the file from Azure and index it into the RAG system with citation metadata.
