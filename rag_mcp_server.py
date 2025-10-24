@@ -5,6 +5,7 @@ from fastmcp.exceptions import ToolError
 import json
 from utils.rag_interface import knowledge_base_retrieval_interface
 from fastmcp import FastMCP, Context
+from fastapi.responses import JSONResponse
 
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from fastmcp.server.dependencies import get_http_headers
@@ -43,27 +44,19 @@ mcp = FastMCP(
 This TutoringRAGSystem MCP server manages user-scoped knowledge bases for personalized tutoring and learning.
 
 It exposes tools for:
-1. Knowledge retrieval from stored learning interactions
+1. Knowledge retrieval from stored learning interactions with citations
 2. File uploads with automatic text extraction and storage
 3. File management and listing
 
 === Tool Descriptions ===
 
 - knowledge_base_retrieval:
-  Retrieve stored knowledge for a specific user with contextual search.
+  Retrieve stored knowledge for a specific user with contextual search and document citations.
 
 - upload_student_file:
   Upload PDF or DOCX files, automatically extract text, and store in the RAG system.
   Supports both file storage in Azure Blob Storage and content indexing for retrieval.
-
-- list_student_files:
-  List all files uploaded by a student, optionally filtered by subject.
-
-- get_file_download_url:
-  Generate temporary secure download URLs for uploaded files.
-
-- preview_file_text:
-  Extract and preview text from a file without storing it permanently.
+  Accepts optional document_title parameter for better citation tracking.
 
 All tools require valid JWT authentication via Bearer token.
 """,
@@ -77,37 +70,25 @@ rag_system = TutoringRAGSystem()
 file_processor = FileProcessor(rag_system)
 
 
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check():
+    """Health check endpoint."""
+    return JSONResponse(
+        {
+            "status": "healthy",
+            "service": "rag_mcp_server",
+            "tools_available": ["knowledge_base_retrieval", "upload_student_file"],
+        }
+    )
+
+
 @mcp.tool(
     name="knowledge_base_retrieval",
     description="""
     Retrieve personalized knowledge for a specific user from their stored content.
 
     This tool performs a contextual search across a user's private knowledge base
-    using semantic and keyword-based retrieval. It is primarily used by agents or UIs
-    to fetch user-specific notes, explanations, or stored learning materials relevant
-    to a given query.
-
-    ### Behavior
-    - Requires a valid authorization token (verified by middleware) before execution.
-    - Filters results by the provided `user_id`, ensuring access to only that user's content.
-    - Searches within a specific `subject` and `topic` context to improve relevance.
-    - Returns up to `top_k` of the most relevant results along with metadata and content.
-
-    ### Typical Use Cases
-    - When generating answers or explanations using the user's previously stored notes.
-    - When reviewing, revising, or summarizing knowledge in a user-specific context.
-    - When building an adaptive learning or tutoring agent that personalizes responses.
-
-    ### Parameters
-    - **user_id**: Unique identifier of the user whose stored knowledge is being retrieved.
-    - **query**: The natural-language question or keywords to search for.
-    - **subject**: The subject domain to restrict search scope (e.g., "Mathematics").
-    - **topic**: A more specific area within the subject (e.g., "Algebra").
-    - **top_k**: Maximum number of results to return (default: 3).
-
-    ### Notes
-    - Returns an error if the request is unauthorized (token verification fails).
-    - Use this tool to power context-aware reasoning or personalized responses.
+    using semantic and keyword-based retrieval. Returns responses with document citations.
     """,
 )
 def knowledge_base_retrieval(
@@ -133,17 +114,37 @@ def knowledge_base_retrieval(
     top_k: Annotated[
         int, Field(description="Number of results to return. Default=3")
     ] = 3,
-) -> ToolResult | dict:
+) -> ToolResult:
     """
     MCP tool wrapper around the RAG retrieval system for user-specific context.
     """
-    try:
-        if not ctx.get_state("auth_verified"):
-            return {
-                "status": "error",
-                "message": "Unauthorized: token verification failed.",
-            }
+    import traceback
 
+    try:
+        print(f"=" * 80)
+        print(f"🔍 knowledge_base_retrieval called")
+        print(f"  user_id: {user_id}")
+        print(f"  query: {query}")
+        print(f"  subject: {subject}")
+        print(f"  topic: {topic}")
+        print(f"  top_k: {top_k}")
+        print(f"=" * 80)
+
+        # Check authentication
+        if not ctx.get_state("auth_verified"):
+            return ToolResult(
+                content=json.dumps(
+                    {
+                        "status": "error",
+                        "message": "Unauthorized: token verification failed.",
+                    }
+                )
+            )
+
+        print("✅ Authentication verified")
+        print("📞 Calling knowledge_base_retrieval_interface...")
+
+        # Call the RAG interface
         result = knowledge_base_retrieval_interface(
             student_id=user_id,
             current_question=query,
@@ -152,47 +153,39 @@ def knowledge_base_retrieval(
             context_limit=top_k,
         )
 
+        print(f"✅ RAG interface returned result")
+        print(f"   Result type: {type(result)}")
+        print(f"   Result preview: {str(result)[:200]}...")
+
+        # Result should be a string
+        if not isinstance(result, str):
+            raise ValueError(f"Expected string result, got {type(result)}")
+
         return ToolResult(
             content=json.dumps(
                 {
                     "status": "success",
                     "user_id": user_id,
                     "query": query,
-                    "results": result,
+                    "response": result,
                 }
             )
         )
 
     except Exception as e:
-        raise ToolError(f"Failed to retrieve knowledge: {str(e)}")
+        error_details = traceback.format_exc()
+        print(f"❌ ERROR in knowledge_base_retrieval:")
+        print(error_details)
+        raise ToolError(
+            f"Failed to retrieve knowledge: {str(e)}\n\nDetails:\n{error_details}"
+        )
 
 
 @mcp.tool(
     name="upload_student_file",
     description="""
     Upload a PDF or DOCX file, extract text content, and store in both Azure Blob Storage
-    and the RAG system for future retrieval.
-
-    **Supported file formats: PDF, DOCX**
-
-    This tool performs multiple operations:
-    1. Uploads the file to Azure Blob Storage for archival
-    2. Extracts all text content from the file (using PyMuPDF for PDFs, python-docx for DOCX)
-    3. Chunks the text into manageable segments with overlap
-    4. Stores each chunk in the RAG system for semantic search
-    5. Returns metadata about the upload and processing
-
-    **Extracted content includes:**
-    - For PDFs: All text from all pages, page numbers, image detection
-    - For DOCX: All paragraphs and tables with formatting preserved
-
-    **Use cases:**
-    - Student uploads study notes or handouts
-    - Student uploads assignments or homework for context
-    - Student uploads textbook chapters or reference materials
-    - Storing learning materials for later context-aware tutoring
-
-    **The extracted text becomes searchable** via the knowledge_base_retrieval tool.
+    and the RAG system for future retrieval. Accepts optional document_title for citations.
     """,
 )
 def process_existing_file(
@@ -219,13 +212,17 @@ def process_existing_file(
     description: Annotated[
         Optional[str], Field(description="Optional description of the file content")
     ] = None,
+    document_title: Annotated[
+        Optional[str],
+        Field(
+            description="Optional custom document title for citations (defaults to filename)"
+        ),
+    ] = None,  # NEW: Document title parameter
 ) -> ToolResult:
     """
-    download the file from Azure and index it into the RAG system.
-
+    Download the file from Azure and index it into the RAG system with citation metadata.
     """
     try:
-        # Verify authentication
         if not ctx.get_state("auth_verified"):
             return ToolResult(
                 content=json.dumps(
@@ -236,7 +233,6 @@ def process_existing_file(
                 )
             )
 
-        # Validate file type
         file_extension = filename.lower().split(".")[-1]
         if file_extension not in ["pdf", "docx", "doc"]:
             raise ToolError(
@@ -247,7 +243,6 @@ def process_existing_file(
         if file_content is None:
             raise ToolError(f"File not found in storage: {file_id}")
 
-        # Prepare metadata
         metadata = {}
         if description:
             metadata["description"] = description
@@ -259,6 +254,7 @@ def process_existing_file(
             subject=subject,
             topic=topic,
             difficulty_level=difficulty_level,
+            document_title=document_title,  # NEW: Pass document title
             additional_metadata={
                 "blob_name": file_id,
                 "description": description,
@@ -283,6 +279,9 @@ def process_existing_file(
                     "status": "success",
                     "message": f"File '{filename}' processed and indexed successfully",
                     "file_id": file_id,
+                    "document_title": processing_result.get(
+                        "document_title", filename
+                    ),  # NEW: Return title
                     "processing_info": {
                         "total_characters": processing_result["total_characters"],
                         "chunks_stored": processing_result["chunks_stored"],
@@ -294,193 +293,6 @@ def process_existing_file(
 
     except Exception as e:
         raise ToolError(f"Failed to process file: {str(e)}")
-
-
-# @mcp.tool(
-#     name="preview_file_text",
-#     description="""
-#     Extract and preview text from a PDF or DOCX file without storing it.
-
-#     Use this tool to:
-#     - Show users what text will be extracted before storing
-#     - Verify file content and extraction quality
-#     - Check if the file contains meaningful text
-
-#     Returns a preview (first 500 characters by default) of extracted text
-#     along with metadata about the file structure.
-#     """,
-# )
-# def preview_file_text(
-#     ctx: Context,
-#     filename: Annotated[
-#         str, Field(description="Filename with extension (e.g., 'notes.pdf')")
-#     ],
-#     file_content_base64: Annotated[
-#         str, Field(description="Base64-encoded file content")
-#     ],
-#     max_chars: Annotated[
-#         int, Field(description="Maximum characters to return in preview (default: 500)")
-#     ] = 500,
-# ) -> ToolResult:
-#     """
-#     Preview extracted text from a file without storing it.
-#     """
-#     try:
-#         # Verify authentication
-#         if not ctx.get_state("auth_verified"):
-#             return ToolResult(
-#                 content=json.dumps(
-#                     {
-#                         "status": "error",
-#                         "message": "Unauthorized: token verification failed.",
-#                     }
-#                 )
-#             )
-
-#         # Decode base64 content
-#         try:
-#             file_content = base64.b64decode(file_content_base64)
-#         except Exception as e:
-#             raise ToolError(f"Invalid base64 content: {str(e)}")
-
-#         # Extract preview
-#         preview_result = file_processor.extract_text_preview(
-#             file_content=file_content,
-#             filename=filename,
-#             max_chars=max_chars,
-#         )
-
-#         if preview_result["status"] != "success":
-#             raise ToolError(preview_result.get("message", "Preview extraction failed"))
-
-#         return ToolResult(
-#             content=json.dumps(
-#                 {
-#                     "status": "success",
-#                     "filename": filename,
-#                     "preview": preview_result["preview"],
-#                     "total_characters": preview_result["total_characters"],
-#                     "metadata": preview_result["metadata"],
-#                 }
-#             )
-#         )
-
-#     except Exception as e:
-#         raise ToolError(f"Failed to preview file: {str(e)}")
-
-
-# @mcp.tool(
-#     name="list_student_files",
-#     description="""
-#     List all files previously uploaded by a specific student.
-
-#     Use this to:
-#     - Show a student their uploaded materials
-#     - Find specific files for reference during tutoring
-#     - Filter files by subject area
-
-#     Returns a list of files with metadata including filenames,
-#     upload timestamps, sizes, and download URLs.
-#     """,
-# )
-# def list_student_files(
-#     ctx: Context,
-#     user_id: Annotated[
-#         str, Field(description="Unique ID of the student whose files to list.")
-#     ],
-#     subject: Annotated[
-#         Optional[str], Field(description="Optional subject filter")
-#     ] = None,
-# ) -> ToolResult:
-#     """
-#     List all files for a student, optionally filtered by subject.
-#     """
-#     try:
-#         # Verify authentication
-#         if not ctx.get_state("auth_verified"):
-#             return ToolResult(
-#                 content=json.dumps(
-#                     {
-#                         "status": "error",
-#                         "message": "Unauthorized: token verification failed.",
-#                     }
-#                 )
-#             )
-
-#         files = azure_storage.list_student_files(student_id=user_id, subject=subject)
-
-#         return ToolResult(
-#             content=json.dumps(
-#                 {
-#                     "status": "success",
-#                     "user_id": user_id,
-#                     "subject_filter": subject,
-#                     "file_count": len(files),
-#                     "files": files,
-#                 }
-#             )
-#         )
-
-#     except Exception as e:
-#         raise ToolError(f"Failed to list files: {str(e)}")
-
-
-# @mcp.tool(
-#     name="get_file_download_url",
-#     description="""
-#     Generate a temporary download URL for a student's file.
-
-#     Returns a secure, time-limited URL (valid for 24 hours by default)
-#     that can be used to download the file without requiring authentication.
-
-#     Useful for:
-#     - Providing students access to their uploaded materials
-#     - Sharing files with tutors or reviewers
-#     - Downloading files for processing or analysis
-#     """,
-# )
-# def get_file_download_url(
-#     ctx: Context,
-#     blob_name: Annotated[str, Field(description="Full blob name/path of the file")],
-#     expiry_hours: Annotated[
-#         int, Field(description="Hours until the URL expires (default: 24)")
-#     ] = 24,
-# ) -> ToolResult:
-#     """
-#     Generate a temporary SAS URL for downloading a file.
-#     """
-#     try:
-#         # Verify authentication
-#         if not ctx.get_state("auth_verified"):
-#             return ToolResult(
-#                 content=json.dumps(
-#                     {
-#                         "status": "error",
-#                         "message": "Unauthorized: token verification failed.",
-#                     }
-#                 )
-#             )
-
-#         download_url = azure_storage.generate_download_url(
-#             blob_name=blob_name, expiry_hours=expiry_hours
-#         )
-
-#         if download_url:
-#             return ToolResult(
-#                 content=json.dumps(
-#                     {
-#                         "status": "success",
-#                         "blob_name": blob_name,
-#                         "download_url": download_url,
-#                         "expires_in_hours": expiry_hours,
-#                     }
-#                 )
-#             )
-#         else:
-#             raise ToolError("Failed to generate download URL")
-
-#     except Exception as e:
-#         raise ToolError(f"Failed to generate download URL: {str(e)}")
 
 
 if __name__ == "__main__":

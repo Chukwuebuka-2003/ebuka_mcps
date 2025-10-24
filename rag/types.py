@@ -26,3 +26,4 @@ class LearningContext:
     content: str
     memory_type: MemoryType
     metadata: Optional[Dict[str, Any]] = None
+    document_title: Optional[str] = None

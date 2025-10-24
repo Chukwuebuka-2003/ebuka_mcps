@@ -22,12 +22,12 @@ from llama_index.llms.openai import OpenAI
 from llama_index.vector_stores.pinecone import PineconeVectorStore
 from pinecone import Pinecone, ServerlessSpec
 
-from rag.identity.checker import ConsentLevel, Student, check_identity_and_consent
+from rag.identity.checker import ConsentLevel, Student, check_identity_and_consent_sync
 from rag.intent.parser import RiskFlag, parse_intent
 from rag.types import LearningContext, MemoryType
 import time
 from rag.utils import sanitize_pinecone_metadata
-
+import logging
 
 load_dotenv()
 
@@ -109,6 +109,7 @@ class TutoringRAGSystem:
             "learning_style": context.learning_style,
             "memory_type": context.memory_type.value,
             "timestamp": context.timestamp.isoformat(),
+            "document_title": context.document_title,
             **(context.metadata or {}),
         }
         # sanitize the metadata
@@ -394,6 +395,7 @@ class TutoringRAGSystem:
             ),
             memory_type=MemoryType.SKILL_ASSESSMENT,
             metadata={"competency_level": competency_level, "skill_area": skill_area},
+            document_title="Skill Assessment Report",
         )
 
         return self.store_learning_interaction(context)
@@ -406,14 +408,26 @@ class TutoringRAGSystem:
         topic: str,
         context_limit: int = 5,
     ) -> str:
-        # Identity + Consent Check
-        student = check_identity_and_consent(student_id)
+        logger = logging.getLogger(__name__)
+
+        logger.info("=" * 80)
+        logger.info(f"🔍 RAG RETRIEVAL STARTING")
+        logger.info(f"  Student ID: {student_id}")
+        logger.info(f"  Question: {current_question}")
+        logger.info(f"  Subject: {subject}, Topic: {topic}")
+        logger.info("=" * 80)
+
+        # Identity + Consent Check (using sync version since we don't have async context here)
+        student = check_identity_and_consent_sync(student_id)
+        logger.info(f"✅ Student consent level: {student.consent_level}")
 
         # Intent Parsing
         intent = parse_intent(current_question, self.llm)
+        logger.info(f"📊 Intent parsed - Goal: {intent.goal}, Topic: {intent.topic}")
 
         # Policy/Ethics Gate (Pre-Retrieval)
         if intent.risk_flags:
+            logger.warning(f"⚠️  Risk flags detected: {intent.risk_flags}")
             if RiskFlag.ACADEMIC_INTEGRITY_CONCERN in intent.risk_flags:
                 return "I can help you understand the concepts, but I cannot provide direct answers to assignments or tests. Let's work through a similar example problem."
             if RiskFlag.PII_DETECTED in intent.risk_flags:
@@ -423,48 +437,117 @@ class TutoringRAGSystem:
         parsed_topic = intent.topic
 
         # Retrieval Orchestration
-        assessed_difficulty = 5  # Default difficulty
+        assessed_difficulty = 5
+        citations = []
+
         if student.consent_level == ConsentLevel.MINIMAL_PSEUDONYMOUS:
+            logger.warning("⚠️  Minimal consent - no personalized retrieval")
             context_text = (
                 "No personal learning history available due to consent level."
             )
-            # We can still get a general difficulty for the topic if no history is present
             assessed_difficulty = self._get_student_current_difficulty(
                 student.student_id, parsed_topic, subject
             )
         else:
+            logger.info(f"🔎 Retrieving context for student...")
             student_context, assessed_difficulty = self.retrieve_student_context(
                 student=student,
                 current_topic=parsed_topic,
                 subject=subject,
                 limit=context_limit,
             )
-            context_text = "\n".join(
-                [f"Previous learning: {node.text}" for node in student_context]
+
+            logger.info(f"📚 Retrieved {len(student_context)} context nodes")
+
+            # Extract document titles for citations
+            document_titles = set()
+            context_parts = []
+
+            for i, node in enumerate(student_context):
+                doc_title = node.metadata.get("document_title") or node.metadata.get(
+                    "filename", "Unknown Source"
+                )
+                document_titles.add(doc_title)
+
+                logger.info(
+                    f"  📄 Node {i + 1}: {doc_title[:50]}... (score: {node.score:.3f})"
+                )
+                logger.info(f"     Content preview: {node.text[:100]}...")
+
+                context_parts.append(f"[Source: {doc_title}]\n{node.text}")
+
+            context_text = "\n\n".join(context_parts)
+            citations = list(document_titles)
+
+            logger.info(f"📖 Available citations: {citations}")
+            logger.info(f"📝 Context text length: {len(context_text)} characters")
+
+        if not citations:
+            logger.warning(
+                "⚠️  NO CITATIONS AVAILABLE - Documents not found or missing metadata"
             )
+        else:
+            logger.info(f"✅ {len(citations)} citation sources available")
 
-        # RAG Synthesis with Pedagogy Policy (Enhanced Prompt)
+        # Enhanced prompt with citation instructions
         prompt = f"""
-        You are an AI tutor helping a student with {subject}.
+    You are an AI tutor helping a student with {subject}.
 
-        **Student's Learning Context:**
-        - Previous learning history: {context_text}
-        - Current goal: The student wants to '{intent.goal.value.replace("_", " ")}'.
-        - Current emotional state: The student seems to be feeling '{intent.affective_state.value}'.
-        - Detected topic: {parsed_topic}
+    **Student's Learning Context:**
+    {context_text if context_text else "No uploaded documents found for this topic."}
 
-        **Student's Question:** "{current_question}"
+    **Student's Question:** "{current_question}"
 
-        Based on all this context, provide a personalized and empathetic response that:
-        1. Acknowledges their emotional state and goal.
-        2. Builds on their existing knowledge.
-        3. Addresses any previous misconceptions.
-        4. Provides guidance at an appropriate difficulty level.
+    **CRITICAL CITATION INSTRUCTIONS:**
+    {
+            f'''
+    YOU MUST CITE THESE SOURCES when using their information:
+    Available sources: {", ".join([f"[{title}]" for title in citations])}
 
-        Response:
-        """
+    CITATION RULES (MANDATORY):
+    1. When you reference ANY information from the context above, immediately add the citation: [Document Title]
+    2. Place citations RIGHT AFTER the relevant sentence or fact
+    3. Example: "The power rule states d/dx[x^n] = n*x^(n-1) [Calculus Chapter 3]."
+    4. If you use information from uploaded documents, you MUST cite them
+    5. DO NOT provide answers from general knowledge if uploaded documents contain the answer
+    '''
+            if citations
+            else '''
+    NO UPLOADED DOCUMENTS FOUND for this topic.
+    You may provide a brief answer from general knowledge, but tell the student:
+    "I don't have any uploaded study materials about this topic yet. Would you like to upload course materials or notes so I can provide more personalized help?"
+    '''
+        }
+
+    Based on the context, provide a response that:
+    1. Acknowledges their emotional state and goal
+    2. {
+            "USES the uploaded material WITH CITATIONS in [Document Title] format"
+            if citations
+            else "Suggests uploading materials for personalized help"
+        }
+    3. Addresses any previous misconceptions
+    4. Provides guidance at an appropriate difficulty level
+
+    Response:
+    """
+
+        logger.info("🤖 Sending prompt to LLM...")
+        logger.info(f"Prompt length: {len(prompt)} characters")
 
         response = self.llm.complete(prompt)
+
+        logger.info("✅ LLM response received")
+        logger.info(f"Response preview: {response.text[:200]}...")
+
+        # Check if citations are in response
+        has_citations = any(f"[{title}]" in response.text for title in citations)
+        if citations and not has_citations:
+            logger.error(
+                "❌ CITATIONS MISSING FROM RESPONSE despite available sources!"
+            )
+        elif has_citations:
+            logger.info("✅ Response includes citations")
 
         # Write-back (Memory Augmentation)
         self.store_learning_interaction(
@@ -481,7 +564,9 @@ class TutoringRAGSystem:
                     "goal": intent.goal.value,
                     "affective_state": intent.affective_state.value,
                 },
+                document_title=f"Chat Interaction on {parsed_topic}",  # Added this line
             )
         )
 
+        logger.info("=" * 80)
         return response.text

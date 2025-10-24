@@ -117,7 +117,7 @@ class ChatService:
             # Store the user query in the database
             metadata = {
                 "chat_session_id": chat_session_id,
-                "user_id": str(current_user.id),
+                "user_id": str(current_user.id),  # FIX: Convert UUID to string
             }
 
             try:
@@ -131,15 +131,7 @@ class ChatService:
                 logger.info("User message stored successfully")
             except Exception as e:
                 logger.error(f"Failed to store user message: {e}")
-
-            # ============= FIX: Pass user context to agent =============
-            user_context = {
-                "user_id": str(current_user.id),
-                "email": current_user.email,
-                "name": current_user.name,
-            }
-            logger.info(f"Passing user context to agent: {user_context}")
-            # ===========================================================
+                # Continue anyway - don't block on DB error
 
             # Call agent with timeout
             logger.info("Calling agent...")
@@ -148,9 +140,8 @@ class ChatService:
                     request.app.state.agent_server.handle_query(
                         query=user_query,
                         session_id=chat_session_id,
-                        user_context=user_context,  # FIX: Pass user context
                     ),
-                    timeout=60.0,
+                    timeout=60.0,  # 60 second timeout
                 )
                 logger.info("Agent response received")
             except asyncio.TimeoutError:
@@ -184,6 +175,7 @@ class ChatService:
                 logger.info("Assistant message stored successfully")
             except Exception as e:
                 logger.error(f"Failed to store assistant message: {e}")
+                # Continue anyway
 
             logger.info("Sending response to client")
             yield json.dumps(response).encode("utf-8") + b"\n"
@@ -279,7 +271,7 @@ class ChatService:
                 updated_at=datetime.now(),
             )
             db.add(message)
-            await db.flush()
+            await db.flush()  # Use flush instead of commit (commit handled by get_db)
             await db.refresh(message)
             return message
         except Exception as e:
@@ -295,13 +287,15 @@ class ChatService:
     ) -> Optional[str]:
         """Get existing chat or create new one if chat_session_id is None or not found."""
         try:
+            # FIX: Convert UUID to string for database operations
             user_id_str = str(current_user.id)
 
             if chat_session_id:
+                # Try to get existing chat
                 result = await db.execute(
                     select(ChatSession).where(
                         ChatSession.chat_session_id == chat_session_id,
-                        ChatSession.user_id == user_id_str,
+                        ChatSession.user_id == user_id_str,  # FIX: Use string version
                     )
                 )
                 chat_session = result.scalar_one_or_none()
@@ -316,11 +310,11 @@ class ChatService:
             new_chat_session_id = str(uuid.uuid4())
             chat_session = ChatSession(
                 chat_session_id=new_chat_session_id,
-                user_id=user_id_str,
+                user_id=user_id_str,  # FIX: Use string version
                 title=first_user_message[:20],
             )
             db.add(chat_session)
-            await db.flush()
+            await db.flush()  # Use flush instead of commit
             await db.refresh(chat_session)
             return chat_session.chat_session_id
         except Exception as e:
@@ -332,12 +326,13 @@ class ChatService:
         current_user, chat_session_id: str, title: str, db: AsyncSession
     ) -> Optional[ChatSessionResponse]:
         """Update the title of a chat."""
+        # FIX: Convert UUID to string
         user_id_str = str(current_user.id)
 
         result = await db.execute(
             select(ChatSession).where(
                 ChatSession.chat_session_id == chat_session_id,
-                ChatSession.user_id == user_id_str,
+                ChatSession.user_id == user_id_str,  # FIX: Use string version
             )
         )
         chat_session = result.scalar_one_or_none()
@@ -353,12 +348,13 @@ class ChatService:
     @staticmethod
     async def delete_chat(current_user, chat_session_id: str, db: AsyncSession) -> dict:
         """Delete a chat."""
+        # FIX: Convert UUID to string
         user_id_str = str(current_user.id)
 
         result = await db.execute(
             select(ChatSession).where(
                 ChatSession.chat_session_id == chat_session_id,
-                ChatSession.user_id == user_id_str,
+                ChatSession.user_id == user_id_str,  # FIX: Use string version
             )
         )
         chat_session = result.scalar_one_or_none()
@@ -373,12 +369,13 @@ class ChatService:
         current_user, chat_session_id: str, db: AsyncSession
     ) -> ChatSessionResponse:
         """Get a chat by id."""
+        # FIX: Convert UUID to string
         user_id_str = str(current_user.id)
 
         result = await db.execute(
             select(ChatSession).where(
                 ChatSession.chat_session_id == chat_session_id,
-                ChatSession.user_id == user_id_str,
+                ChatSession.user_id == user_id_str,  # FIX: Use string version
             )
         )
         chat_session = result.scalar_one_or_none()
@@ -391,13 +388,14 @@ class ChatService:
         current_user, chat_session_id: str, db: AsyncSession
     ) -> list:
         """Get all messages in a chat (conversation)."""
+        # FIX: Convert UUID to string
         user_id_str = str(current_user.id)
 
         # Ensure the chat belongs to the user
         result = await db.execute(
             select(ChatSession).where(
                 ChatSession.chat_session_id == chat_session_id,
-                ChatSession.user_id == user_id_str,
+                ChatSession.user_id == user_id_str,  # FIX: Use string version
             )
         )
         chat = result.scalar_one_or_none()
@@ -415,11 +413,12 @@ class ChatService:
     @staticmethod
     async def get_user_chats(current_user, db: AsyncSession) -> list:
         """Get all chat sessions for a user."""
+        # FIX: Convert UUID to string
         user_id_str = str(current_user.id)
 
         result = await db.execute(
             select(ChatSession)
-            .where(ChatSession.user_id == user_id_str)
+            .where(ChatSession.user_id == user_id_str)  # FIX: Use string version
             .order_by(ChatSession.updated_at.desc())
         )
         chats = result.scalars().all()
