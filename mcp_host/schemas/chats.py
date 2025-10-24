@@ -28,6 +28,9 @@ class UploadMetadata(BaseModel):
     difficulty_level: int = Field(
         ge=1, le=10, description="Level from 1 (easy) to 10 (hard)"
     )
+    document_title: Optional[str] = Field(
+        None, description="Custom document title for citations"
+    )  # NEW: Document title field
 
 
 # Chat Session Schemas

@@ -1,6 +1,6 @@
 from mcp_host.schemas.chats import UploadMetadata
 from fastapi import Form
-from typing import Dict, Any
+from typing import Dict, Any, Optional  # NEW: Import Optional
 
 
 def parse_upload_metadata(
@@ -8,12 +8,14 @@ def parse_upload_metadata(
     subject: str = Form(...),
     topic: str = Form(...),
     difficulty_level: int = Form(...),
+    document_title: Optional[str] = Form(None),  # NEW: Document title parameter
 ) -> UploadMetadata:
     return UploadMetadata(
         student_id=student_id,
         subject=subject,
         topic=topic,
         difficulty_level=difficulty_level,
+        document_title=document_title,  # NEW: Include document title
     )
 
 

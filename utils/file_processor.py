@@ -1,16 +1,15 @@
-"""
-File processor for extracting text from PDFs and DOCX files.
-Integrates with the RAG system to store extracted content.
-"""
-
 import io
 import json
-from typing import Dict, Any, Optional
+import logging
 from datetime import datetime
-import pymupdf  # PyMuPDF
+from typing import Any, Dict, List, Optional
+
+import pymupdf  # type: ignore
 from docx import Document
-from rag.types import LearningContext, MemoryType
 from rag.system import TutoringRAGSystem
+from rag.types import LearningContext, MemoryType
+
+logger = logging.getLogger(__name__)
 
 
 class FileProcessor:
@@ -24,13 +23,13 @@ class FileProcessor:
         Initialize the file processor.
 
         Args:
-            rag_system: Instance of TutoringRAGSystem for storing extracted content
+            rag_system: An instance of TutoringRAGSystem for storing learning interactions.
         """
         self.rag_system = rag_system
 
     def extract_text_from_pdf(self, file_content: bytes) -> Dict[str, Any]:
         """
-        Extract text from a PDF file using PyMuPDF.
+        Extract text from a PDF file.
 
         Args:
             file_content: PDF file content as bytes
@@ -133,6 +132,24 @@ class FileProcessor:
                 "message": f"Failed to extract text from DOCX: {str(e)}",
             }
 
+    def _chunk_text(self, text: str, chunk_size: int, overlap: int) -> List[str]:
+        """
+        Splits text into chunks with a specified overlap.
+        """
+        if not text:
+            return []
+
+        chunks = []
+        start = 0
+        while start < len(text):
+            end = start + chunk_size
+            chunk = text[start:end]
+            chunks.append(chunk)
+            if end >= len(text):
+                break
+            start += chunk_size - overlap
+        return chunks
+
     def process_and_store_file(
         self,
         file_content: bytes,
@@ -142,6 +159,7 @@ class FileProcessor:
         topic: Optional[str] = None,
         difficulty_level: int = 5,
         additional_metadata: Optional[Dict[str, Any]] = None,
+        document_title: Optional[str] = None,  # Allow custom title
     ) -> Dict[str, Any]:
         """
         Process a file (PDF or DOCX) and store extracted content in the RAG system.
@@ -154,6 +172,7 @@ class FileProcessor:
             topic: Optional specific topic
             difficulty_level: Difficulty level (1-10)
             additional_metadata: Optional additional metadata
+            document_title: Optional custom title for citations
 
         Returns:
             Dictionary with processing results and stored document IDs
@@ -182,6 +201,9 @@ class FileProcessor:
             # Split text into chunks if it's too long (optional but recommended)
             chunks = self._chunk_text(extracted_text, chunk_size=1000, overlap=200)
 
+            # Use custom title or filename as fallback
+            doc_title = document_title or filename
+
             # Store each chunk in the RAG system
             stored_doc_ids = []
 
@@ -190,6 +212,7 @@ class FileProcessor:
                 # Convert complex metadata to JSON strings
                 metadata = {
                     "filename": filename,
+                    "document_title": doc_title,  # Add document title for citations
                     "file_type": file_extension,
                     "chunk_index": i,
                     "total_chunks": len(chunks),
@@ -215,6 +238,7 @@ class FileProcessor:
                     content=chunk,
                     memory_type=MemoryType.CONTENT_MASTERY,
                     metadata=metadata,
+                    document_title=doc_title,
                 )
 
                 # Store in RAG system
@@ -223,111 +247,14 @@ class FileProcessor:
 
             return {
                 "status": "success",
-                "message": f"Successfully processed and stored {len(chunks)} chunks from {filename}",
-                "filename": filename,
-                "file_type": file_extension,
-                "total_characters": extraction_result["total_characters"],
-                "chunks_stored": len(chunks),
+                "message": f"Successfully processed and stored {len(stored_doc_ids)} document chunks.",
                 "document_ids": stored_doc_ids,
-                "extraction_metadata": file_metadata,
+                "total_characters": extraction_result[
+                    "total_characters"
+                ],  # Added this line
+                "chunks_stored": len(stored_doc_ids),  # Added this line
             }
 
         except Exception as e:
-            return {
-                "status": "error",
-                "message": f"Failed to process file: {str(e)}",
-            }
-
-    def _chunk_text(
-        self, text: str, chunk_size: int = 1000, overlap: int = 200
-    ) -> list[str]:
-        """
-        Split text into overlapping chunks for better retrieval.
-
-        Args:
-            text: Text to chunk
-            chunk_size: Maximum characters per chunk
-            overlap: Number of characters to overlap between chunks
-
-        Returns:
-            List of text chunks
-        """
-        if len(text) <= chunk_size:
-            return [text]
-
-        chunks = []
-        start = 0
-
-        while start < len(text):
-            # Get chunk
-            end = start + chunk_size
-            chunk = text[start:end]
-
-            # Try to break at sentence or paragraph boundary
-            if end < len(text):
-                # Look for sentence endings
-                last_period = chunk.rfind(". ")
-                last_newline = chunk.rfind("\n")
-
-                break_point = max(last_period, last_newline)
-
-                if break_point > chunk_size * 0.5:  # Only break if we're past halfway
-                    chunk = text[start : start + break_point + 1]
-                    end = start + break_point + 1
-
-            chunks.append(chunk.strip())
-
-            # Move start position with overlap
-            start = end - overlap
-
-        return chunks
-
-    def extract_text_preview(
-        self, file_content: bytes, filename: str, max_chars: int = 500
-    ) -> Dict[str, Any]:
-        """
-        Extract a preview of text from a file without storing it.
-        Useful for showing users what was extracted before storing.
-
-        Args:
-            file_content: File content as bytes
-            filename: Original filename
-            max_chars: Maximum characters to return in preview
-
-        Returns:
-            Dictionary with preview text and metadata
-        """
-        try:
-            file_extension = filename.lower().split(".")[-1]
-
-            if file_extension == "pdf":
-                extraction_result = self.extract_text_from_pdf(file_content)
-            elif file_extension in ["docx", "doc"]:
-                extraction_result = self.extract_text_from_docx(file_content)
-            else:
-                return {
-                    "status": "error",
-                    "message": f"Unsupported file type: {file_extension}",
-                }
-
-            if extraction_result["status"] == "error":
-                return extraction_result
-
-            full_text = extraction_result["text"]
-            preview = full_text[:max_chars]
-
-            if len(full_text) > max_chars:
-                preview += "..."
-
-            return {
-                "status": "success",
-                "preview": preview,
-                "total_characters": len(full_text),
-                "metadata": extraction_result["metadata"],
-            }
-
-        except Exception as e:
-            return {
-                "status": "error",
-                "message": f"Failed to extract preview: {str(e)}",
-            }
+            logger.exception(f"Error processing and storing file {filename}: {e}")
+            return {"status": "error", "message": f"File processing failed: {str(e)}"}
