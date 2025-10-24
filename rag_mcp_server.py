@@ -141,8 +141,8 @@ def knowledge_base_retrieval(
                 )
             )
 
-        print("✅ Authentication verified")
-        print("📞 Calling knowledge_base_retrieval_interface...")
+        print("Authentication verified")
+        print("Calling knowledge_base_retrieval_interface...")
 
         # Call the RAG interface
         result = knowledge_base_retrieval_interface(
@@ -153,7 +153,7 @@ def knowledge_base_retrieval(
             context_limit=top_k,
         )
 
-        print(f"✅ RAG interface returned result")
+        print(f"RAG interface returned result")
         print(f"   Result type: {type(result)}")
         print(f"   Result preview: {str(result)[:200]}...")
 
@@ -254,7 +254,7 @@ def process_existing_file(
             subject=subject,
             topic=topic,
             difficulty_level=difficulty_level,
-            document_title=document_title,  # NEW: Pass document title
+            document_title=document_title,  
             additional_metadata={
                 "blob_name": file_id,
                 "description": description,
@@ -281,7 +281,7 @@ def process_existing_file(
                     "file_id": file_id,
                     "document_title": processing_result.get(
                         "document_title", filename
-                    ),  # NEW: Return title
+                    ),  
                     "processing_info": {
                         "total_characters": processing_result["total_characters"],
                         "chunks_stored": processing_result["chunks_stored"],
