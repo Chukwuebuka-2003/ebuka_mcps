@@ -1,0 +1,63 @@
+name: Build and Push Docker Images to ACR
+
+on:
+  push:
+    branches:
+      - main # Trigger on push to the main branch
+
+env:
+  AZURE_ACR_NAME: aitutoracr 
+  AZURE_RG: ai-tutor-rg
+  LOCATION: eastus
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout the repository code
+      - uses: actions/checkout@v4
+
+      # 1. Log in to Azure with the service principal secret
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          
+      # 2. Get ACR credentials for Docker login
+      - name: Get ACR Credentials
+        id: acr_creds
+        run: |
+          echo "Retrieving ACR credentials for login..."
+          ACR_USERNAME=$(az acr credential show -n ${{ env.AZURE_ACR_NAME }} --query 'username' -o tsv)
+          ACR_PASSWORD=$(az acr credential show -n ${{ env.AZURE_ACR_NAME }} --query 'passwords[0].value' -o tsv)
+          # Pass credentials as output to the next step
+          echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_OUTPUT
+          echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_OUTPUT
+
+      # 3. Docker Login to Azure Container Registry
+      - name: Docker Login to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.AZURE_ACR_NAME }}.azurecr.io
+          username: ${{ steps.acr_creds.outputs.ACR_USERNAME }}
+          password: ${{ steps.acr_creds.outputs.ACR_PASSWORD }}
+
+      # 4. Build and Push the 'mcp-host' image
+      - name: Build and Push mcp-host
+        uses: docker/build-push-action@v5
+        with:
+          context: ./mcp-host/ # Path to the Dockerfile and source for mcp-host
+          push: true
+          tags: |
+            ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:latest
+            ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:${{ github.sha }}
+
+      # 5. Build and Push the 'rag-server' image
+      - name: Build and Push rag-server
+        uses: docker/build-push-action@v5
+        with:
+          context: ./rag-server/ # Path to the Dockerfile and source for rag-server
+          push: true
+          tags: |
+            ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:latest
+            ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:${{ github.sha }}
