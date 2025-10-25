@@ -88,3 +88,10 @@ jobs:
           acrName: ${{ env.AZURE_ACR_NAME }}
           acrUsername: ${{ steps.acr_creds.outputs.ACR_USERNAME }}
           acrPassword: ${{ steps.acr_creds.outputs.ACR_PASSWORD }}
+          environmentVariables: |
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            POSTGRES_HOST=${{ secrets.POSTGRES_HOST }}
+            POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            REDIS_URL=${{ secrets.REDIS_URL }}
