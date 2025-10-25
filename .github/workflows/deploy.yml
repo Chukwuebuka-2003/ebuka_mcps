@@ -47,6 +47,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./mcp_host/ # Path to the Dockerfile and source for mcp-host
+          file: ./Dockerfile.mcp_host
           push: true
           tags: |
             ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:latest
@@ -57,6 +58,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./rag/ # Path to the Dockerfile and source for rag-server
+          file: ./Dockerfile.rag_server
           push: true
           tags: |
             ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:latest
