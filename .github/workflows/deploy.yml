@@ -1,4 +1,4 @@
-name: Build and Push Docker Images to ACR 
+name: Build and Deploy Container Apps
 
 on:
   push:
@@ -9,9 +9,10 @@ env:
   AZURE_ACR_NAME: aitutoracr 
   AZURE_RG: ai-tutor-rg
   LOCATION: eastus
+  ACA_ENVIRONMENT: aca-ai-tutor-env
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       # Checkout the repository code
@@ -63,3 +64,23 @@ jobs:
           tags: |
             ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:latest
             ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:${{ github.sha }}
+
+      # 6. Deploy RAG Server Container App (Internal Service)
+      - name: Deploy RAG Server to ACA
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ env.AZURE_RG }}
+          environment: ${{ env.ACA_ENVIRONMENT }}
+          containerAppName: rag-mcp-server 
+          image: ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:latest
+          trafficPercent: 0 # Only needs to be deployed, no public traffic
+
+      # 7. Deploy MCP Host Container App (Public Endpoint)
+      - name: Deploy MCP Host to ACA
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ env.AZURE_RG }}
+          environment: ${{ env.ACA_ENVIRONMENT }}
+          containerAppName: mcp-host 
+          image: ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:latest
+          trafficPercent: 100 # Publicly accessible host
