@@ -1,4 +1,4 @@
-name: Build and Push Docker Images to ACR # Force update
+name: Build and Push Docker Images to ACR 
 
 on:
   push:
@@ -46,7 +46,7 @@ jobs:
       - name: Build and Push mcp-host
         uses: docker/build-push-action@v5
         with:
-          context: ./mcp_host/ # Path to the Dockerfile and source for mcp-host
+          context: ./ 
           file: ./Dockerfile.mcp_host
           push: true
           tags: |
@@ -57,7 +57,7 @@ jobs:
       - name: Build and Push rag-server
         uses: docker/build-push-action@v5
         with:
-          context: ./rag/ # Path to the Dockerfile and source for rag-server
+          context: ./
           file: ./Dockerfile.rag_server
           push: true
           tags: |
