@@ -28,10 +28,10 @@
   "mcpServers": {
     "turtor_rag": {
       "transport_type": "streamable_http",
-      "url": "http://0.0.0.0:9000/mcp",
+      "url": "http://rag_mcp_server:9000/mcp",
       "timeout": 60,
       "headers": {
-        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJteS1zZXJ2ZXItMDEiLCJleHAiOjE3NjEwNzg4MTAsImlhdCI6MTc2MDcxODgxMH0.Y6aWWx9-uy1S4LprE6mDwUzj-py8E1FnN7QHmWHHhpY"
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0dXRvcmluZy1hZ2VudC1tY3AtY2xpZW50IiwiZXhwIjoxNzYxNzYzNjg5LCJpYXQiOjE3NjE0MDM2ODl9._uCexo8UGxF2Bjmbb-s-S-AqXwvkRtRT7TqxlaH5PbE"
       }
     }
   }
