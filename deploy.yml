@@ -1,4 +1,4 @@
-name: Build and Push Docker Images to ACR
+name: Build and Push Docker Images to ACR # Force update
 
 on:
   push:
