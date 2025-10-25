@@ -70,17 +70,17 @@ jobs:
         uses: azure/container-apps-deploy-action@v1
         with:
           resourceGroup: ${{ env.AZURE_RG }}
-          environment: ${{ env.ACA_ENVIRONMENT }}
+          containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
           containerAppName: rag-mcp-server 
-          image: ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:latest
-          trafficPercent: 0 # Only needs to be deployed, no public traffic
+          imageToDeploy: ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:latest
+          trafficPercent: 0 
 
       # 7. Deploy MCP Host Container App (Public Endpoint)
       - name: Deploy MCP Host to ACA
         uses: azure/container-apps-deploy-action@v1
         with:
           resourceGroup: ${{ env.AZURE_RG }}
-          environment: ${{ env.ACA_ENVIRONMENT }}
+          containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
           containerAppName: mcp-host 
-          image: ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:latest
-          trafficPercent: 100 # Publicly accessible host
+          imageToDeploy: ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:latest
+          trafficPercent: 100 
