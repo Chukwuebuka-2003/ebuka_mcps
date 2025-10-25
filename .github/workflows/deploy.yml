@@ -46,7 +46,7 @@ jobs:
       - name: Build and Push mcp-host
         uses: docker/build-push-action@v5
         with:
-          context: ./mcp-host/ # Path to the Dockerfile and source for mcp-host
+          context: ./mcp_host/ # Path to the Dockerfile and source for mcp-host
           push: true
           tags: |
             ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:latest
@@ -56,7 +56,7 @@ jobs:
       - name: Build and Push rag-server
         uses: docker/build-push-action@v5
         with:
-          context: ./rag-server/ # Path to the Dockerfile and source for rag-server
+          context: ./rag/ # Path to the Dockerfile and source for rag-server
           push: true
           tags: |
             ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:latest
