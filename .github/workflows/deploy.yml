@@ -91,7 +91,7 @@ jobs:
           acrPassword: ${{ steps.acr_creds.outputs.ACR_PASSWORD }}
           targetPort: 8000
           ingress: external
-          environmentVariables:
+          environmentVariables: |
             - name: POSTGRES_USER
               value: ${{ secrets.POSTGRES_USER }}
             - name: POSTGRES_PASSWORD
