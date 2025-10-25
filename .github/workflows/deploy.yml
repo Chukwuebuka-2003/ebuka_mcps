@@ -67,7 +67,7 @@ jobs:
 
       # 6. Deploy RAG Server Container App (Internal Service)
       - name: Deploy RAG Server to ACA
-        uses: azure/container-apps-deploy-action@v1
+        uses: azure/container-apps-deploy-action@v1.2.0
         with:
           resourceGroup: ${{ env.AZURE_RG }}
           containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
@@ -80,7 +80,7 @@ jobs:
           
       # 7. Deploy MCP Host Container App (Public Endpoint)
       - name: Deploy MCP Host to ACA
-        uses: azure/container-apps-deploy-action@v1
+        uses: azure/container-apps-deploy-action@v1.2.0
         with:
           resourceGroup: ${{ env.AZURE_RG }}
           containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
