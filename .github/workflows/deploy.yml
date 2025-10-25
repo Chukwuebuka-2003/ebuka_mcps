@@ -72,7 +72,7 @@ jobs:
           resourceGroup: ${{ env.AZURE_RG }}
           containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
           containerAppName: rag-mcp-server 
-          imageToDeploy: ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:latest
+          imageToDeploy: ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:${{ github.sha }}
           acrName: ${{ env.AZURE_ACR_NAME }}
           acrUsername: ${{ steps.acr_creds.outputs.ACR_USERNAME }}
           acrPassword: ${{ steps.acr_creds.outputs.ACR_PASSWORD }}
@@ -85,7 +85,7 @@ jobs:
           resourceGroup: ${{ env.AZURE_RG }}
           containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
           containerAppName: mcp-host 
-          imageToDeploy: ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:latest
+          imageToDeploy: ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:${{ github.sha }}
           acrName: ${{ env.AZURE_ACR_NAME }}
           acrUsername: ${{ steps.acr_creds.outputs.ACR_USERNAME }}
           acrPassword: ${{ steps.acr_creds.outputs.ACR_PASSWORD }}
