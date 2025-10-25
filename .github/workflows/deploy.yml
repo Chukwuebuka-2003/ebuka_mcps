@@ -87,20 +87,18 @@ jobs:
             --resource-group ${{ env.AZURE_RG }} \
             --image ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:${{ github.sha }} \
             --container-name mcp-host \
-            --registry-server ${{ env.AZURE_ACR_NAME }}.azurecr.io \
-            --registry-username ${{ steps.acr_creds.outputs.ACR_USERNAME }} \
-            --registry-password ${{ steps.acr_creds.outputs.ACR_PASSWORD }} \
             --set 'template.containers[0].env=[
-            { "name": "POSTGRES_USER", "value": "${{ secrets.POSTGRES_USER }}" },
-            { "name": "POSTGRES_PASSWORD", "value": "${{ secrets.POSTGRES_PASSWORD }}" },
-            { "name": "POSTGRES_HOST", "value": "${{ secrets.POSTGRES_HOST }}" },
-            { "name": "POSTGRES_PORT", "value": "${{ secrets.POSTGRES_PORT }}" },
-            { "name": "POSTGRES_DB", "value": "${{ secrets.POSTGRES_DB }}" },
-            { "name": "REDIS_URL", "value": "${{ secrets.REDIS_URL }}" },
-            { "name": "PINECONE_API_KEY", "value": "${{ secrets.PINECONE_API_KEY }}" },
-            { "name": "PINECONE_ENVIRONMENT", "value": "${{ secrets.PINECONE_ENVIRONMENT }}" },
-            { "name": "AZURE_STORAGE_CONNECTION_STRING", "value": "${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" },
-            { "name": "LLM_API_KEY", "value": "${{ secrets.LLM_API_KEY }}" },
-            { "name": "OPENAI_API_KEY", "value": "${{ secrets.OPENAI_API_KEY }}" },
-            { "name": "OMNI_MEMORY_PROVIDER", "value": "${{ secrets.OMNI_MEMORY_PROVIDER }}" }
+              { "name": "POSTGRES_USER", "value": "${{ secrets.POSTGRES_USER }}" },
+              { "name": "POSTGRES_PASSWORD", "value": "${{ secrets.POSTGRES_PASSWORD }}" },
+              { "name": "POSTGRES_HOST", "value": "${{ secrets.POSTGRES_HOST }}" },
+              { "name": "POSTGRES_PORT", "value": "${{ secrets.POSTGRES_PORT }}" },
+              { "name": "POSTGRES_DB", "value": "${{ secrets.POSTGRES_DB }}" },
+              { "name": "REDIS_URL", "value": "${{ secrets.REDIS_URL }}" },
+              { "name": "PINECONE_API_KEY", "value": "${{ secrets.PINECONE_API_KEY }}" },
+              { "name": "PINECONE_ENVIRONMENT", "value": "${{ secrets.PINECONE_ENVIRONMENT }}" },
+              { "name": "AZURE_STORAGE_CONNECTION_STRING", "value": "${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" },
+              { "name": "LLM_API_KEY", "value": "${{ secrets.LLM_API_KEY }}" },
+              { "name": "OPENAI_API_KEY", "value": "${{ secrets.OPENAI_API_KEY }}" },
+              { "name": "OMNI_MEMORY_PROVIDER", "value": "${{ secrets.OMNI_MEMORY_PROVIDER }}" }
             ]'
+
