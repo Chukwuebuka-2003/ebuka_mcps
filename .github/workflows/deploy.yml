@@ -34,7 +34,6 @@ jobs:
           # Pass credentials as output to the next step
           echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_OUTPUT
           echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_OUTPUT
-
       # 3. Docker Login to Azure Container Registry
       - name: Docker Login to ACR
         uses: docker/login-action@v3
@@ -53,7 +52,6 @@ jobs:
           tags: |
             ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:latest
             ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:${{ github.sha }}
-
       # 5. Build and Push the 'rag-server' image
       - name: Build and Push rag-server
         uses: docker/build-push-action@v5
@@ -64,7 +62,6 @@ jobs:
           tags: |
             ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:latest
             ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:${{ github.sha }}
-
       # 6. Deploy RAG Server Container App (Internal Service)
       - name: Deploy RAG Server to ACA
         uses: azure/container-apps-deploy-action@v1
@@ -72,7 +69,7 @@ jobs:
           resourceGroup: ${{ env.AZURE_RG }}
           containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
           containerAppName: rag-mcp-server 
-          imageToDeploy: ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:${{ github.sha }}
+          imageToDeploy: ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:latest
           acrName: ${{ env.AZURE_ACR_NAME }}
           acrUsername: ${{ steps.acr_creds.outputs.ACR_USERNAME }}
           acrPassword: ${{ steps.acr_creds.outputs.ACR_PASSWORD }}
@@ -84,8 +81,8 @@ jobs:
         with:
           resourceGroup: ${{ env.AZURE_RG }}
           containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
-          containerAppName: mcp-host
-          imageToDeploy: ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:${{ github.sha }}
+          containerAppName: mcp-host 
+          imageToDeploy: ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:latest
           acrName: ${{ env.AZURE_ACR_NAME }}
           acrUsername: ${{ steps.acr_creds.outputs.ACR_USERNAME }}
           acrPassword: ${{ steps.acr_creds.outputs.ACR_PASSWORD }}
