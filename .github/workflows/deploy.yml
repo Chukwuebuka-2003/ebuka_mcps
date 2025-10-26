@@ -1,90 +1,107 @@
-name: Build and Deploy Container Apps
+name: Build, Push, and Deploy to Azure Container Apps
 
 on:
   push:
     branches:
-      - main # Trigger on push to the main branch
+      - main
 
 env:
-  AZURE_ACR_NAME: aitutoracr 
-  AZURE_RG: ai-tutor-rg
-  LOCATION: eastus
-  ACA_ENVIRONMENT: aca-ai-tutor-env
+  # Base name for the repository (Docker Hub username)
+  DOCKER_REPOSITORY: ${{ secrets.DOCKER_USERNAME }}
+  # Placeholder for the latest tag used across all images
+  IMAGE_TAG: latest
+  # Azure Container App and Resource Group Configuration (Using your specified values)
+  RESOURCE_GROUP: 'ai-tutor-rg' 
+  ACA_HOST_NAME: 'mcp-host'       
+  ACA_RAG_NAME: 'rag-mcp-server'      
 
 jobs:
-  build-and-deploy:
+  build_and_push:
     runs-on: ubuntu-latest
+    
+    # Define an output so the next job can check if this succeeded
+    outputs:
+      images_pushed: true
+      
     steps:
-      # Checkout the repository code
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      # 1. Log in to Azure with the service principal secret
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-          
-      # 2. Get ACR credentials for Docker login
-      - name: Get ACR Credentials
-        id: acr_creds
-        run: |
-          echo "Retrieving ACR credentials for login..."
-          ACR_USERNAME=$(az acr credential show -n ${{ env.AZURE_ACR_NAME }} --query 'username' -o tsv)
-          ACR_PASSWORD=$(az acr credential show -n ${{ env.AZURE_ACR_NAME }} --query 'passwords[0].value' -o tsv)
-          # Pass credentials as output to the next step
-          echo "ACR_USERNAME=$ACR_USERNAME" >> $GITHUB_OUTPUT
-          echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_OUTPUT
-      # 3. Docker Login to Azure Container Registry
-      - name: Docker Login to ACR
+      # Step 1: Log in to Docker Hub
+      - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.AZURE_ACR_NAME }}.azurecr.io
-          username: ${{ steps.acr_creds.outputs.ACR_USERNAME }}
-          password: ${{ steps.acr_creds.outputs.ACR_PASSWORD }}
-
-      # 4. Build and Push the 'mcp-host' image
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      # Step 2: Set up Docker Buildx for multi-platform builds
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      # --- Build and Push mcp-host image ---
+      
+      # Step 3: Build and push mcp-host
       - name: Build and Push mcp-host
         uses: docker/build-push-action@v5
         with:
-          context: ./ 
-          file: ./Dockerfile.mcp_host
+          context: ./mcp-host
+          file: ./mcp-host/Dockerfile
           push: true
-          tags: |
-            ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:latest
-            ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:${{ github.sha }}
-      # 5. Build and Push the 'rag-server' image
+          # The resulting image tag is: ${{ secrets.DOCKER_USERNAME }}/mcp-host:latest
+          tags: ${{ env.DOCKER_REPOSITORY }}/mcp-host:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- Build and Push rag-server image ---
+      
+      # Step 4: Build and push rag-server
       - name: Build and Push rag-server
         uses: docker/build-push-action@v5
         with:
-          context: ./
-          file: ./Dockerfile.rag_server
+          context: ./rag-server
+          file: ./rag-server/Dockerfile
           push: true
-          tags: |
-            ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:latest
-            ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:${{ github.sha }}
-      # 6. Deploy RAG Server Container App (Internal Service)
-      - name: Deploy RAG Server to ACA
-        uses: azure/container-apps-deploy-action@v1
+          # The resulting image tag is: ${{ secrets.DOCKER_USERNAME }}/rag-server:latest
+          tags: ${{ env.DOCKER_REPOSITORY }}/rag-server:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy_to_aca:
+    runs-on: ubuntu-latest
+    needs: build_and_push # Ensure this job only runs after the images are successfully pushed
+    environment: Production # Recommended best practice for deployment
+    
+    steps:
+      # Step 1: Login to Azure using Service Principal credentials (Requires AZURE_CREDENTIALS secret)
+      - name: Log in to Azure
+        uses: azure/login@v1
         with:
-          resourceGroup: ${{ env.AZURE_RG }}
-          containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
-          containerAppName: rag-mcp-server 
-          imageToDeploy: ${{ env.AZURE_ACR_NAME }}.azurecr.io/rag-server:latest
-          acrName: ${{ env.AZURE_ACR_NAME }}
-          acrUsername: ${{ steps.acr_creds.outputs.ACR_USERNAME }}
-          acrPassword: ${{ steps.acr_creds.outputs.ACR_PASSWORD }}
-          targetPort: 9000
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
           
-      # 7. Deploy MCP Host Container App (Public Endpoint)
-      - name: Deploy MCP Host to ACA
+      # Step 2: Deploy mcp-host image to Azure Container Apps
+      - name: Deploy mcp-host to ACA
         uses: azure/container-apps-deploy-action@v1
         with:
-          resourceGroup: ${{ env.AZURE_RG }}
-          containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
-          containerAppName: mcp-host 
-          imageToDeploy: ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:latest
-          acrName: ${{ env.AZURE_ACR_NAME }}
-          acrUsername: ${{ steps.acr_creds.outputs.ACR_USERNAME }}
-          acrPassword: ${{ steps.acr_creds.outputs.ACR_PASSWORD }}
-          targetPort: 8000
-          ingress: external
+          # Uses the image pushed in the previous job
+          imageToDeploy: ${{ env.DOCKER_REPOSITORY }}/mcp-host:${{ env.IMAGE_TAG }}
+          containerAppName: ${{ env.ACA_HOST_NAME }}
+          resourceGroup: ${{ env.RESOURCE_GROUP }}
+          # Provide Docker Hub credentials for ACA to pull the image
+          acrUsername: ${{ secrets.DOCKER_USERNAME }}
+          acrPassword: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Step 3: Deploy rag-server image to Azure Container Apps
+      - name: Deploy rag-server to ACA
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          # Uses the image pushed in the previous job
+          imageToDeploy: ${{ env.DOCKER_REPOSITORY }}/rag-server:${{ env.IMAGE_TAG }}
+          containerAppName: ${{ env.ACA_RAG_NAME }}
+          resourceGroup: ${{ env.RESOURCE_GROUP }}
+          # Provide Docker Hub credentials for ACA to pull the image
+          acrUsername: ${{ secrets.DOCKER_USERNAME }}
+          acrPassword: ${{ secrets.DOCKER_PASSWORD }}
+          
+      # Step 4: Logout of Azure
+      - name: Azure Logout
+        run: az logout
