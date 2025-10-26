@@ -78,14 +78,16 @@ jobs:
           acrPassword: ${{ steps.acr_creds.outputs.ACR_PASSWORD }}
           targetPort: 9000
           
-      # 7. Deploy MCP Host Container App (Public Endpoint) using AZ CLI
-      - name: Deploy MCP Host (Inheriting Env Vars)
-        shell: bash
-        run: |
-          az containerapp update \
-          --name mcp-host \
-          --resource-group ${{ env.AZURE_RG }} \
-          --image ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:${{ github.sha }} \
-          --container-name mcp-host \
-          --ingress external \
-          --target-port 8000
+      # 7. Deploy MCP Host Container App (Public Endpoint)
+      - name: Deploy MCP Host to ACA
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ env.AZURE_RG }}
+          containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
+          containerAppName: mcp-host 
+          imageToDeploy: ${{ env.AZURE_ACR_NAME }}.azurecr.io/mcp-host:${{ github.sha }}
+          acrName: ${{ env.AZURE_ACR_NAME }}
+          acrUsername: ${{ steps.acr_creds.outputs.ACR_USERNAME }}
+          acrPassword: ${{ steps.acr_creds.outputs.ACR_PASSWORD }}
+          targetPort: 8000
+          ingress: external
