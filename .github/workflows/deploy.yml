@@ -6,7 +6,6 @@ on:
       - main
 
 env:
-  # Base name for the repository (Docker Hub username)
   DOCKER_REPOSITORY: ${{ secrets.DOCKER_USERNAME }}
   # Placeholder for the latest tag used across all images
   IMAGE_TAG: latest
