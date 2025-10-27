@@ -43,8 +43,8 @@ jobs:
       - name: Build and Push mcp-host
         uses: docker/build-push-action@v5
         with:
-          context: ./mcp-host
-          file: ./mcp-host/Dockerfile
+          context: ./
+          file: ./Dockerfile.mcp_host
           push: true
           # The resulting image tag is: ${{ secrets.DOCKER_USERNAME }}/mcp-host:latest
           tags: ${{ env.DOCKER_REPOSITORY }}/mcp-host:${{ env.IMAGE_TAG }}
@@ -57,8 +57,8 @@ jobs:
       - name: Build and Push rag-server
         uses: docker/build-push-action@v5
         with:
-          context: ./rag-server
-          file: ./rag-server/Dockerfile
+          context: ./
+          file: ./Dockerfile.rag_server
           push: true
           # The resulting image tag is: ${{ secrets.DOCKER_USERNAME }}/rag-server:latest
           tags: ${{ env.DOCKER_REPOSITORY }}/rag-server:${{ env.IMAGE_TAG }}
