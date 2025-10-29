@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Ebuka MCP Heroku Deployment",
-    "description": "Test collection for MCP Host and RAG Server deployed on Heroku",
+    "description": "Test collection for MCP Host and RAG Server deployed on Heroku\n\n🤖 **AI-Powered Subject Detection:**\nThe system now automatically detects academic subjects from:\n- Chat interactions (user questions + AI responses)\n- Uploaded documents (PDF/DOCX content)\n\nSupported subjects: Mathematics, Physics, Chemistry, Biology, Computer Science, English, History, Geography, Economics, Psychology, Philosophy, Art, Music, Engineering, Business, and General.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -230,7 +230,89 @@
               "raw": "{{mcp_host_url}}/chats/tutor-rag-agent",
               "host": ["{{mcp_host_url}}"],
               "path": ["chats", "tutor-rag-agent"]
-            }
+            },
+            "description": "Start a chat session with the AI tutor. The subject will be automatically detected from your question using AI.\n\n**Example questions and detected subjects:**\n- \"Explain Newton's laws\" → Physics\n- \"How do I implement a binary search?\" → Computer Science\n- \"What caused World War II?\" → History\n- \"Explain photosynthesis\" → Biology\n\nThe AI analyzes both your question and the tutor's response to accurately classify the subject."
+          },
+          "response": []
+        },
+        {
+          "name": "Test AI Subject Detection - Math",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chat_session_id\": \"ai-test-math-{{$timestamp}}\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"How do I solve quadratic equations using the quadratic formula?\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{mcp_host_url}}/chats/tutor-rag-agent",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["chats", "tutor-rag-agent"]
+            },
+            "description": "Test AI subject detection with a Mathematics question. After completion, check /progress/subjects to verify 'Mathematics' was detected."
+          },
+          "response": []
+        },
+        {
+          "name": "Test AI Subject Detection - Programming",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chat_session_id\": \"ai-test-cs-{{$timestamp}}\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"How do I implement a binary search tree in Python?\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{mcp_host_url}}/chats/tutor-rag-agent",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["chats", "tutor-rag-agent"]
+            },
+            "description": "Test AI subject detection with a Computer Science question. After completion, check /progress/subjects to verify 'Computer Science' was detected."
+          },
+          "response": []
+        },
+        {
+          "name": "Test AI Subject Detection - History",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chat_session_id\": \"ai-test-history-{{$timestamp}}\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"What were the main causes of World War II?\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{mcp_host_url}}/chats/tutor-rag-agent",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["chats", "tutor-rag-agent"]
+            },
+            "description": "Test AI subject detection with a History question. After completion, check /progress/subjects to verify 'History' was detected."
           },
           "response": []
         },
@@ -333,9 +415,9 @@
                 },
                 {
                   "key": "subject",
-                  "value": "Mathematics",
+                  "value": "General",
                   "type": "text",
-                  "description": "Subject category (e.g., Mathematics, History, Science)"
+                  "description": "Subject category - Set to 'General' to let AI auto-detect from document content, or specify: Mathematics, Physics, Chemistry, Biology, Computer Science, English, History, etc."
                 },
                 {
                   "key": "topic",
@@ -362,7 +444,7 @@
               "host": ["{{mcp_host_url}}"],
               "path": ["chats", "upload-student-file"]
             },
-            "description": "Upload a PDF or DOCX file to be processed and indexed in the RAG system. The file will be:\n1. Stored in Azure Blob Storage\n2. Text extracted automatically\n3. Indexed for future knowledge retrieval\n\nThe document_title parameter is optional and helps with better citation tracking. If not provided, the filename will be used."
+            "description": "Upload a PDF or DOCX file to be processed and indexed in the RAG system.\n\n🤖 **AI-Powered Subject Detection:**\nSet 'subject' to 'General' and the AI will automatically detect the subject from the document content:\n- Math textbook PDF → Mathematics\n- Physics notes → Physics  \n- Programming tutorial → Computer Science\n- History essay → History\n\n**Processing steps:**\n1. Stored in Azure Blob Storage\n2. Text extracted automatically\n3. **Subject auto-detected from content** (if 'General')\n4. Indexed for future knowledge retrieval\n\n**Response includes:**\n- detected_subject: The AI-detected or provided subject\n- document_title: Title used for citations\n- processing_info: Chunks stored and character count\n\nThe document_title parameter is optional and helps with better citation tracking. If not provided, the filename will be used."
           },
           "response": []
         },
