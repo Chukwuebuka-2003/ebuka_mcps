@@ -18,7 +18,7 @@ from mcp_host.database.db import get_db
 # JWT config
 SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "insecure-default-secret")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
