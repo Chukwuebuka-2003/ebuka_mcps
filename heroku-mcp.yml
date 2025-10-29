@@ -1,0 +1,5 @@
+build:
+  docker:
+    web: Dockerfile.mcp_host
+run:
+  web: sh -c "alembic upgrade head && uvicorn mcp_host.main:app --host 0.0.0.0 --port $PORT"
