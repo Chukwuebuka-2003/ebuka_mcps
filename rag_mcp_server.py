@@ -308,9 +308,11 @@ def process_existing_file(
 
 
 if __name__ == "__main__":
+    import os
+    port = int(os.getenv("PORT", 9000))
     mcp.run(
         transport="http",
         host="0.0.0.0",
-        port=9000,
+        port=port,
         log_level="DEBUG",
     )
