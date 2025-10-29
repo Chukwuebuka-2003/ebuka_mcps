@@ -152,7 +152,7 @@ class ChatService:
                 return
 
             # Check if the required server exists in sessions
-            server_name = "turtor_rag"
+            server_name = "TutoringRAGSystemMCPServer"
             if server_name not in mcp_sessions:
                 available_servers = list(mcp_sessions.keys()) if mcp_sessions else []
                 error_msg = f"Server '{server_name}' not found in MCP sessions. Available: {available_servers}"
