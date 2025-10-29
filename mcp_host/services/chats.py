@@ -13,7 +13,7 @@ from mcp_host.schemas.chats import (
     ChatMessageResponse,
     UploadMetadata,
 )
-from mcp_host.database.db import get_db_session
+from mcp_host.database.db import get_db_session, SyncSessionLocal
 
 import json
 import logging
@@ -83,10 +83,11 @@ class ChatService:
         meta: UploadMetadata,
         file_id: str,
     ):
-        async def update_status(status: FileUploadStatus, blob_name: str = None, error_msg: str = None):
-            async with get_db_session() as db:
-                result = await db.execute(select(FileUpload).where(FileUpload.id == file_id))
-                file_record = result.scalar_one_or_none()
+        def update_status(status: FileUploadStatus, blob_name: str = None, error_msg: str = None):
+            """Update file upload status using synchronous database session"""
+            db = SyncSessionLocal()
+            try:
+                file_record = db.query(FileUpload).filter(FileUpload.id == file_id).first()
                 if file_record:
                     file_record.status = status
                     file_record.updated_at = datetime.now(timezone.utc)
@@ -94,11 +95,16 @@ class ChatService:
                         file_record.blob_name = blob_name
                     if error_msg:
                         file_record.error_message = error_msg
-                    # Commit is handled by get_db_session context manager
+                    db.commit()
+            except Exception as e:
+                logger.error(f"Failed to update file status: {e}")
+                db.rollback()
+            finally:
+                db.close()
 
         try:
             # Update status to PROCESSING
-            asyncio.run(update_status(FileUploadStatus.PROCESSING))
+            update_status(FileUploadStatus.PROCESSING)
 
             upload_result = storage_manager.upload_file(
                 file_content=file_content,
@@ -116,7 +122,7 @@ class ChatService:
             if upload_result.get("status") != "success":
                 error_msg = f"Background upload failed: {upload_result}"
                 logger.error(error_msg)
-                asyncio.run(update_status(FileUploadStatus.FAILED, error_msg=error_msg))
+                update_status(FileUploadStatus.FAILED, error_msg=error_msg)
                 return
 
             blob_name = upload_result["blob_name"]
@@ -125,7 +131,7 @@ class ChatService:
             if not mcp_sessions:
                 error_msg = "MCP sessions not available"
                 logger.error(error_msg)
-                asyncio.run(update_status(FileUploadStatus.FAILED, blob_name=blob_name, error_msg=error_msg))
+                update_status(FileUploadStatus.FAILED, blob_name=blob_name, error_msg=error_msg)
                 return
 
             asyncio.run(
@@ -146,12 +152,12 @@ class ChatService:
             )
 
             # Update status to COMPLETED
-            asyncio.run(update_status(FileUploadStatus.COMPLETED, blob_name=blob_name))
+            update_status(FileUploadStatus.COMPLETED, blob_name=blob_name)
             logger.info(f"Completed background processing for {filename}")
         except Exception as e:
             error_msg = f"Background task failed: {e}"
             logger.exception(error_msg)
-            asyncio.run(update_status(FileUploadStatus.FAILED, error_msg=error_msg))
+            update_status(FileUploadStatus.FAILED, error_msg=error_msg)
 
     @staticmethod
     async def chat_endpoint(
