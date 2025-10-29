@@ -141,6 +141,10 @@ Subject:"""
 
             # Create file upload tracking record
             file_id = str(uuid.uuid4())
+
+            # Use custom upload_date if provided, otherwise use current time
+            upload_timestamp = meta.upload_date if meta.upload_date else datetime.now(timezone.utc)
+
             file_upload = FileUpload(
                 id=file_id,
                 user_id=meta.student_id,
@@ -148,6 +152,7 @@ Subject:"""
                 subject=meta.subject,
                 topic=meta.topic,
                 status=FileUploadStatus.PENDING,
+                created_at=upload_timestamp,  # Use custom or current date
             )
             db.add(file_upload)
             await db.commit()
@@ -157,7 +162,42 @@ Subject:"""
                 "status": "success",
                 "message": "File received; background processing started.",
                 "file_id": file_id,
+                "document_info": {
+                    "filename": filename,
+                    "document_title": meta.document_title or filename,
+                    "subject": meta.subject,
+                    "topic": meta.topic,
+                    "upload_date": upload_timestamp.isoformat(),
+                }
             }
+
+            # If a chat_session_id is provided, store the file upload event in chat history
+            if meta.chat_session_id:
+                try:
+                    document_title = meta.document_title or filename
+                    upload_message = f"📄 Document uploaded: {document_title}"
+
+                    upload_metadata = {
+                        "event_type": "file_upload",
+                        "file_id": file_id,
+                        "filename": filename,
+                        "document_title": document_title,
+                        "subject": meta.subject,
+                        "topic": meta.topic,
+                        "upload_date": upload_timestamp.isoformat(),
+                    }
+
+                    await ChatService.store_chat_message(
+                        db=db,
+                        chat_session_id=meta.chat_session_id,
+                        role="system",
+                        content=upload_message,
+                        message_metadata=upload_metadata,
+                    )
+                    logger.info(f"📝 File upload event stored in chat history: {meta.chat_session_id}")
+                except Exception as e:
+                    logger.error(f"Failed to store file upload in chat history: {e}")
+                    # Don't fail the upload if chat history storage fails
 
             background_tasks.add_task(
                 ChatService._process_uploaded_file,

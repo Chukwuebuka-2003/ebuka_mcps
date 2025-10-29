@@ -31,6 +31,12 @@ class UploadMetadata(BaseModel):
     document_title: Optional[str] = Field(
         None, description="Custom document title for citations"
     )  # NEW: Document title field
+    upload_date: Optional[datetime] = Field(
+        None, description="Custom upload date (defaults to current time if not provided)"
+    )  # NEW: Custom upload date field
+    chat_session_id: Optional[str] = Field(
+        None, description="Chat session ID to link this upload to a conversation"
+    )  # NEW: Link upload to chat session
 
 
 # Chat Session Schemas
