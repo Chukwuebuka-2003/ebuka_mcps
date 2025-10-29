@@ -13,6 +13,7 @@ from mcp_host.schemas.chats import (
     ChatMessageResponse,
     UploadMetadata,
 )
+from mcp_host.database.db import get_db_session
 
 import json
 import logging
@@ -60,7 +61,6 @@ class ChatService:
                 ChatService._process_uploaded_file,
                 request.app.state.storage_manager,
                 request.app.state.agent_server.mcp_client,
-                request.app.state.db_session_maker,
                 file_content,
                 filename,
                 file.content_type or "application/octet-stream",
@@ -77,7 +77,6 @@ class ChatService:
     def _process_uploaded_file(
         storage_manager,
         mcp_client,
-        db_session_maker,
         file_content: bytes,
         filename: str,
         content_type: str,
@@ -85,7 +84,7 @@ class ChatService:
         file_id: str,
     ):
         async def update_status(status: FileUploadStatus, blob_name: str = None, error_msg: str = None):
-            async with db_session_maker() as db:
+            async with get_db_session() as db:
                 result = await db.execute(select(FileUpload).where(FileUpload.id == file_id))
                 file_record = result.scalar_one_or_none()
                 if file_record:
@@ -95,7 +94,7 @@ class ChatService:
                         file_record.blob_name = blob_name
                     if error_msg:
                         file_record.error_message = error_msg
-                    await db.commit()
+                    # Commit is handled by get_db_session context manager
 
         try:
             # Update status to PROCESSING
