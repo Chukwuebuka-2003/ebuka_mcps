@@ -35,6 +35,22 @@ class AuthHeaderMiddleware(Middleware):
         context.fastmcp_context.set_state("auth_verified", is_verified)
         context.fastmcp_context.set_state("auth_payload", payload)
 
+        # CRITICAL FIX: Preprocess query parameter for knowledge_base_retrieval
+        # Convert array to comma-separated string if the agent sends an array
+        tool_name = context.tool_name
+        tool_args = context.arguments
+
+        if tool_name == "knowledge_base_retrieval" and "query" in tool_args:
+            query_value = tool_args["query"]
+
+            # If query is a list/array, convert it to a comma-separated string
+            if isinstance(query_value, list):
+                converted_query = ", ".join(str(item) for item in query_value)
+                context.arguments["query"] = converted_query
+                print(f"⚠️  MIDDLEWARE: Converted query array to string:")
+                print(f"   Original: {query_value}")
+                print(f"   Converted: {converted_query}")
+
         return await call_next(context)
 
 
