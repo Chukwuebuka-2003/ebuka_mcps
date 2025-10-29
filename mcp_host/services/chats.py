@@ -233,13 +233,21 @@ class ChatService:
             logger.info(f"Completed background processing for {filename}")
 
             # Track file upload as a learning session
+            # Note: Background task runs in a thread pool, use asyncio.run for async code
             try:
                 from uuid import UUID
                 user_uuid = UUID(meta.student_id) if isinstance(meta.student_id, str) else meta.student_id
-                sync_db = SyncSessionLocal()
+
+                # Create new event loop for background task
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
                 try:
-                    import asyncio
-                    asyncio.run(SessionTracker.track_file_upload(
+                    # Use synchronous session for background task
+                    from mcp_host.database.db import get_sync_db
+                    sync_db = next(get_sync_db())
+
+                    # Convert AsyncSession method to work with sync session
+                    loop.run_until_complete(SessionTracker.track_file_upload(
                         db=sync_db,
                         user_id=user_uuid,
                         subject=meta.subject,
@@ -248,7 +256,7 @@ class ChatService:
                     ))
                     logger.info(f"📁 File upload session tracked for {filename}")
                 finally:
-                    sync_db.close()
+                    loop.close()
             except Exception as e:
                 logger.error(f"Failed to track file upload session: {e}")
         except Exception as e:
