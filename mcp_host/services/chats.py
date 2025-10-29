@@ -14,14 +14,65 @@ from mcp_host.schemas.chats import (
     UploadMetadata,
 )
 from mcp_host.database.db import get_db_session, SyncSessionLocal
+from mcp_host.services.session_tracker import SessionTracker
 
 import json
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
 
 class ChatService:
+    @staticmethod
+    def _extract_subject_and_topic(query: str, response: str) -> tuple[str, str, int]:
+        """
+        Extract subject, topic, and difficulty from user query and AI response.
+        Returns: (subject, topic, difficulty_level)
+        """
+        # Common subjects
+        subjects_map = {
+            'math': ['calculus', 'algebra', 'geometry', 'trigonometry', 'statistics', 'arithmetic'],
+            'physics': ['mechanics', 'thermodynamics', 'electromagnetism', 'quantum', 'optics'],
+            'chemistry': ['organic', 'inorganic', 'physical chemistry', 'biochemistry'],
+            'biology': ['cell', 'genetics', 'evolution', 'ecology', 'anatomy'],
+            'computer science': ['programming', 'algorithm', 'data structure', 'database', 'python', 'javascript'],
+            'english': ['grammar', 'writing', 'literature', 'essay', 'vocabulary'],
+            'history': ['ancient', 'medieval', 'modern', 'world war', 'revolution'],
+        }
+
+        query_lower = query.lower()
+        response_lower = response.lower()
+        combined = query_lower + " " + response_lower
+
+        # Detect subject
+        detected_subject = "General"
+        for subject, keywords in subjects_map.items():
+            for keyword in keywords:
+                if keyword in combined:
+                    detected_subject = subject.title()
+                    break
+            if detected_subject != "General":
+                break
+
+        # Extract topic (use first sentence or key phrase from query)
+        topic = query[:100] if len(query) <= 100 else query[:97] + "..."
+
+        # Estimate difficulty based on query complexity
+        difficulty_indicators = {
+            'advanced': 8, 'complex': 7, 'difficult': 7,
+            'intermediate': 5, 'basic': 3, 'simple': 2,
+            'beginner': 2, 'intro': 3, 'fundamental': 4
+        }
+
+        difficulty = 5  # Default medium difficulty
+        for indicator, level in difficulty_indicators.items():
+            if indicator in query_lower:
+                difficulty = level
+                break
+
+        return detected_subject, topic, difficulty
+
     @staticmethod
     async def upload_student_file(
         request: Request,
@@ -180,6 +231,26 @@ class ChatService:
             # Update status to COMPLETED
             update_status(FileUploadStatus.COMPLETED, blob_name=blob_name)
             logger.info(f"Completed background processing for {filename}")
+
+            # Track file upload as a learning session
+            try:
+                from uuid import UUID
+                user_uuid = UUID(meta.student_id) if isinstance(meta.student_id, str) else meta.student_id
+                sync_db = SyncSessionLocal()
+                try:
+                    import asyncio
+                    asyncio.run(SessionTracker.track_file_upload(
+                        db=sync_db,
+                        user_id=user_uuid,
+                        subject=meta.subject,
+                        topic=meta.topic,
+                        filename=filename
+                    ))
+                    logger.info(f"📁 File upload session tracked for {filename}")
+                finally:
+                    sync_db.close()
+            except Exception as e:
+                logger.error(f"Failed to track file upload session: {e}")
         except Exception as e:
             error_msg = f"Background task failed: {e}"
             logger.exception(error_msg)
@@ -263,6 +334,24 @@ class ChatService:
                 logger.info("Assistant message stored successfully")
             except Exception as e:
                 logger.error(f"Failed to store assistant message: {e}")
+
+            # Track learning session for progress reporting
+            try:
+                subject, topic, difficulty = ChatService._extract_subject_and_topic(
+                    user_query, result["response"]
+                )
+                await SessionTracker.track_chat_session(
+                    db=db,
+                    user_id=current_user.id,
+                    subject=subject,
+                    topic=topic,
+                    difficulty_level=difficulty,
+                    questions_asked=1
+                )
+                logger.info(f"📊 Session tracked: {subject}/{topic}")
+            except Exception as e:
+                logger.error(f"Failed to track session: {e}")
+                # Don't break chat if tracking fails
 
             logger.info("Sending response to client")
             yield json.dumps(response).encode("utf-8") + b"\n"
