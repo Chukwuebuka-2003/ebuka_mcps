@@ -145,14 +145,25 @@ class ChatService:
             if not mcp_sessions:
                 error_msg = "MCP sessions not available - client may not be fully initialized"
                 logger.error(error_msg)
-                logger.error(f"MCP client attributes: {dir(mcp_client)}")
+                logger.error(f"MCP client type: {type(mcp_client)}")
+                logger.error(f"MCP sessions value: {mcp_sessions}")
+                logger.error(f"MCP sessions type: {type(mcp_sessions)}")
+                update_status(FileUploadStatus.FAILED, blob_name=blob_name, error_msg=error_msg)
+                return
+
+            # Check if the required server exists in sessions
+            server_name = "turtor_rag"
+            if server_name not in mcp_sessions:
+                available_servers = list(mcp_sessions.keys()) if mcp_sessions else []
+                error_msg = f"Server '{server_name}' not found in MCP sessions. Available: {available_servers}"
+                logger.error(error_msg)
                 update_status(FileUploadStatus.FAILED, blob_name=blob_name, error_msg=error_msg)
                 return
 
             asyncio.run(
                 call_mcp_server_tool(
                     sessions=mcp_sessions,
-                    server_name="TutoringRAGSystemMCPServer",
+                    server_name=server_name,
                     tool_name="upload_student_file",
                     tool_args={
                         "user_id": meta.student_id,
