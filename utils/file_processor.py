@@ -3,13 +3,18 @@ import json
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+import os
 
 import pymupdf  # type: ignore
 from docx import Document
 from rag.system import TutoringRAGSystem
 from rag.types import LearningContext, MemoryType
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
+
+# Initialize OpenAI client for AI subject detection
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 class FileProcessor:
@@ -26,6 +31,66 @@ class FileProcessor:
             rag_system: An instance of TutoringRAGSystem for storing learning interactions.
         """
         self.rag_system = rag_system
+
+    @staticmethod
+    def detect_subject_from_content(text: str) -> str:
+        """
+        Use AI to intelligently detect the subject from document content.
+
+        Args:
+            text: The document text content to analyze
+
+        Returns:
+            Detected subject name (e.g., "Mathematics", "Physics", "Computer Science")
+        """
+        try:
+            # Use first 2000 characters for analysis
+            sample_text = text[:2000]
+
+            prompt = f"""Analyze the following document content and identify the primary academic subject.
+
+Content: {sample_text}
+
+Return ONLY the subject name from this list:
+- Mathematics
+- Physics
+- Chemistry
+- Biology
+- Computer Science
+- English
+- History
+- Geography
+- Economics
+- Psychology
+- Philosophy
+- Art
+- Music
+- Engineering
+- Business
+- General
+
+If the content clearly fits multiple subjects, choose the most dominant one.
+If unclear, return "General".
+
+Subject:"""
+
+            response = openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are an expert at identifying academic subjects from document content. Always respond with a single subject name."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,
+                max_tokens=20
+            )
+
+            detected_subject = response.choices[0].message.content.strip()
+            logger.info(f"🤖 AI detected subject from document: {detected_subject}")
+            return detected_subject
+
+        except Exception as e:
+            logger.error(f"AI subject detection from document failed: {e}")
+            return "General"
 
     def extract_text_from_pdf(self, file_content: bytes) -> Dict[str, Any]:
         """
@@ -198,6 +263,14 @@ class FileProcessor:
             extracted_text = extraction_result["text"]
             file_metadata = extraction_result["metadata"]
 
+            # Use AI to detect subject if "General" was provided or if we want to override
+            if subject == "General" or subject is None:
+                detected_subject = self.detect_subject_from_content(extracted_text)
+                logger.info(f"📚 AI detected subject '{detected_subject}' from document content")
+                subject = detected_subject
+            else:
+                logger.info(f"📚 Using provided subject: {subject}")
+
             # Split text into chunks if it's too long (optional but recommended)
             chunks = self._chunk_text(extracted_text, chunk_size=1000, overlap=200)
 
@@ -249,10 +322,10 @@ class FileProcessor:
                 "status": "success",
                 "message": f"Successfully processed and stored {len(stored_doc_ids)} document chunks.",
                 "document_ids": stored_doc_ids,
-                "total_characters": extraction_result[
-                    "total_characters"
-                ],  # Added this line
-                "chunks_stored": len(stored_doc_ids),  # Added this line
+                "total_characters": extraction_result["total_characters"],
+                "chunks_stored": len(stored_doc_ids),
+                "detected_subject": subject,  # Return the detected/used subject
+                "document_title": doc_title,
             }
 
         except Exception as e:

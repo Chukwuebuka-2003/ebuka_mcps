@@ -19,46 +19,90 @@ from mcp_host.services.session_tracker import SessionTracker
 import json
 import logging
 import re
+import os
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
+
+# Initialize OpenAI client for subject detection
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 class ChatService:
     @staticmethod
+    def _ai_detect_subject(text: str, context: str = "chat") -> str:
+        """
+        Use AI to intelligently detect the subject from text content.
+
+        Args:
+            text: The text to analyze (query, response, or document content)
+            context: Either "chat" or "document" to provide better context
+
+        Returns:
+            Detected subject name (e.g., "Mathematics", "Physics", "Computer Science")
+        """
+        try:
+            prompt = f"""Analyze the following {context} content and identify the primary academic subject.
+
+Content: {text[:1500]}
+
+Return ONLY the subject name from this list:
+- Mathematics
+- Physics
+- Chemistry
+- Biology
+- Computer Science
+- English
+- History
+- Geography
+- Economics
+- Psychology
+- Philosophy
+- Art
+- Music
+- Engineering
+- Business
+- General
+
+If the content clearly fits multiple subjects, choose the most dominant one.
+If unclear, return "General".
+
+Subject:"""
+
+            response = openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are an expert at identifying academic subjects from content. Always respond with a single subject name."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,
+                max_tokens=20
+            )
+
+            detected_subject = response.choices[0].message.content.strip()
+            logger.info(f"🤖 AI detected subject: {detected_subject}")
+            return detected_subject
+
+        except Exception as e:
+            logger.error(f"AI subject detection failed: {e}")
+            return "General"
+
+    @staticmethod
     def _extract_subject_and_topic(query: str, response: str) -> tuple[str, str, int]:
         """
         Extract subject, topic, and difficulty from user query and AI response.
+        Uses AI-powered detection for accurate subject identification.
         Returns: (subject, topic, difficulty_level)
         """
-        # Common subjects
-        subjects_map = {
-            'math': ['calculus', 'algebra', 'geometry', 'trigonometry', 'statistics', 'arithmetic'],
-            'physics': ['mechanics', 'thermodynamics', 'electromagnetism', 'quantum', 'optics'],
-            'chemistry': ['organic', 'inorganic', 'physical chemistry', 'biochemistry'],
-            'biology': ['cell', 'genetics', 'evolution', 'ecology', 'anatomy'],
-            'computer science': ['programming', 'algorithm', 'data structure', 'database', 'python', 'javascript'],
-            'english': ['grammar', 'writing', 'literature', 'essay', 'vocabulary'],
-            'history': ['ancient', 'medieval', 'modern', 'world war', 'revolution'],
-        }
-
-        query_lower = query.lower()
-        response_lower = response.lower()
-        combined = query_lower + " " + response_lower
-
-        # Detect subject
-        detected_subject = "General"
-        for subject, keywords in subjects_map.items():
-            for keyword in keywords:
-                if keyword in combined:
-                    detected_subject = subject.title()
-                    break
-            if detected_subject != "General":
-                break
+        # Use AI to detect subject from combined query and response
+        combined_text = f"Question: {query}\n\nAnswer: {response}"
+        detected_subject = ChatService._ai_detect_subject(combined_text, context="chat")
 
         # Extract topic (use first sentence or key phrase from query)
         topic = query[:100] if len(query) <= 100 else query[:97] + "..."
 
         # Estimate difficulty based on query complexity
+        query_lower = query.lower()
         difficulty_indicators = {
             'advanced': 8, 'complex': 7, 'difficult': 7,
             'intermediate': 5, 'basic': 3, 'simple': 2,

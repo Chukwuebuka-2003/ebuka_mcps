@@ -291,9 +291,8 @@ def process_existing_file(
                     "status": "success",
                     "message": f"File '{filename}' processed and indexed successfully",
                     "file_id": file_id,
-                    "document_title": processing_result.get(
-                        "document_title", filename
-                    ),  
+                    "document_title": processing_result.get("document_title", filename),
+                    "detected_subject": processing_result.get("detected_subject", subject),
                     "processing_info": {
                         "total_characters": processing_result["total_characters"],
                         "chunks_stored": processing_result["chunks_stored"],
