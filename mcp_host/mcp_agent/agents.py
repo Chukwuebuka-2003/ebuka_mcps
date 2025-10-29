@@ -1,17 +1,21 @@
 from omnicoreagent import OmniAgent, MemoryRouter, EventRouter, logger
 from utils.jwt_util import create_server_token
 import asyncio
+import os
 from typing import Optional, Dict, Any
 
 
 # Generate token dynamically
 AUTH_TOKEN = create_server_token("tutoring-agent-mcp-client")
 
+# Get RAG server URL from environment variable (Heroku) or use default (local Docker)
+RAG_SERVER_URL = os.getenv("RAG_MCP_SERVER_URL", "http://rag_mcp_server:9000/mcp")
+
 MCP_TOOLS = [
     {
         "name": "turtor_rag",
         "transport_type": "streamable_http",
-        "url": "http://rag_mcp_server:9000/mcp",
+        "url": RAG_SERVER_URL,
         "headers": {"Authorization": f"Bearer {AUTH_TOKEN}"},
     }
 ]

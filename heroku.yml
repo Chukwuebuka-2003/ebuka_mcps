@@ -1,5 +1,5 @@
 build:
   docker:
-    web: Dockerfile.rag_server
+    web: Dockerfile.mcp_host
 run:
-  web: python rag_mcp_server.py
+  web: ./start_mcp_host.sh
