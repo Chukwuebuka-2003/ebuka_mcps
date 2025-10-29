@@ -1,0 +1,642 @@
+{
+  "info": {
+    "name": "Ebuka MCP Heroku Deployment",
+    "description": "Test collection for MCP Host and RAG Server deployed on Heroku",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "mcp_host_url",
+      "value": "https://ebuka-mcp-host-2699dda7effc.herokuapp.com",
+      "type": "string"
+    },
+    {
+      "key": "rag_server_url",
+      "value": "https://ebuka-rag-mcp-server-24bf42af15c0.herokuapp.com",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "chat_session_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health Checks",
+      "item": [
+        {
+          "name": "MCP Host - Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mcp_host_url}}/",
+              "host": ["{{mcp_host_url}}"],
+              "path": [""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MCP Host - Health Endpoint",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mcp_host_url}}/health",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "RAG Server - Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{rag_server_url}}/",
+              "host": ["{{rag_server_url}}"],
+              "path": [""]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Authentication",
+      "item": [
+        {
+          "name": "Sign Up",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set(\"access_token\", jsonData.access_token);",
+                  "    if (jsonData.user && jsonData.user.id) {",
+                  "        pm.collectionVariables.set(\"user_id\", jsonData.user.id);",
+                  "    }",
+                  "    pm.environment.set(\"access_token\", jsonData.access_token);",
+                  "    console.log(\"Token saved:\", jsonData.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"phone_number\": \"+1234567890\",\n  \"password\": \"Test123!@#\"\n}"
+            },
+            "url": {
+              "raw": "{{mcp_host_url}}/auth/signup",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["auth", "signup"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set(\"access_token\", jsonData.access_token);",
+                  "    pm.environment.set(\"access_token\", jsonData.access_token);",
+                  "    console.log(\"Token saved:\", jsonData.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "email",
+                  "value": "test@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "Test123!@#",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{mcp_host_url}}/auth/token",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["auth", "token"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/auth/me",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["auth", "me"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Chat/Tutoring",
+      "item": [
+        {
+          "name": "Start Chat Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.chat_session_id) {",
+                  "        pm.collectionVariables.set(\"chat_session_id\", jsonData.chat_session_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chat_session_id\": \"test-session-{{$timestamp}}\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Can you help me understand calculus derivatives?\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{mcp_host_url}}/chats/tutor-rag-agent",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["chats", "tutor-rag-agent"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Chat Sessions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/chats/",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["chats", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Chat History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/chats/{{chat_session_id}}/history",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["chats", "{{chat_session_id}}", "history"]
+            },
+            "description": "Get all messages in a chat conversation. Returns message history with role (user/assistant) and content."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Agent Info",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/chats/agent/info",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["chats", "agent", "info"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Student File (PDF/DOCX)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.file_id) {",
+                  "        pm.collectionVariables.set(\"file_id\", jsonData.file_id);",
+                  "        console.log(\"File ID saved:\", jsonData.file_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "PDF or DOCX file to upload"
+                },
+                {
+                  "key": "student_id",
+                  "value": "{{user_id}}",
+                  "type": "text",
+                  "description": "User ID of the student"
+                },
+                {
+                  "key": "subject",
+                  "value": "Mathematics",
+                  "type": "text",
+                  "description": "Subject category (e.g., Mathematics, History, Science)"
+                },
+                {
+                  "key": "topic",
+                  "value": "Calculus",
+                  "type": "text",
+                  "description": "Specific topic within the subject"
+                },
+                {
+                  "key": "difficulty_level",
+                  "value": "5",
+                  "type": "text",
+                  "description": "Difficulty level from 1 (easy) to 10 (hard)"
+                },
+                {
+                  "key": "document_title",
+                  "value": "Calculus Study Notes - Chapter 1",
+                  "type": "text",
+                  "description": "Optional: Custom document title for citations (defaults to filename if not provided)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{mcp_host_url}}/chats/upload-student-file",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["chats", "upload-student-file"]
+            },
+            "description": "Upload a PDF or DOCX file to be processed and indexed in the RAG system. The file will be:\n1. Stored in Azure Blob Storage\n2. Text extracted automatically\n3. Indexed for future knowledge retrieval\n\nThe document_title parameter is optional and helps with better citation tracking. If not provided, the filename will be used."
+          },
+          "response": []
+        },
+        {
+          "name": "Check File Upload Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/chats/files/{{file_id}}/status",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["chats", "files", "{{file_id}}", "status"]
+            },
+            "description": "Check the processing status of an uploaded file. Returns:\n- id: File upload ID\n- filename: Original filename\n- subject & topic: Categorization\n- status: pending | processing | completed | failed\n- chunks_processed: Number of text chunks processed\n- error_message: Error details if status is 'failed'\n- created_at & updated_at: Timestamps\n\nUse this endpoint to poll for completion after uploading a file."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Progress Tracking",
+      "item": [
+        {
+          "name": "Create Learning Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"Mathematics\",\n  \"topic\": \"Calculus - Derivatives\",\n  \"duration_minutes\": 45,\n  \"concepts_covered\": [\"limits\", \"derivatives\", \"chain rule\"]\n}"
+            },
+            "url": {
+              "raw": "{{mcp_host_url}}/progress/sessions",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["progress", "sessions"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Learning Sessions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/progress/sessions",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["progress", "sessions"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Milestone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Completed Calculus Module 1\",\n  \"subject\": \"Mathematics\",\n  \"milestone_type\": \"completed_topic\"\n}"
+            },
+            "url": {
+              "raw": "{{mcp_host_url}}/progress/milestones",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["progress", "milestones"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Milestones",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/progress/milestones",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["progress", "milestones"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Progress Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/progress/report/Mathematics",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["progress", "report", "Mathematics"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Learning Timeline",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/progress/timeline/Mathematics",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["progress", "timeline", "Mathematics"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Weekly Digest",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/progress/weekly-digest",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["progress", "weekly-digest"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Stats Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/progress/stats/summary",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["progress", "stats", "summary"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Consent Management",
+      "item": [
+        {
+          "name": "Get Consent Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/consent/status",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["consent", "status"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Consent",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"consent_level\": \"full_profile\",\n  \"data_retention_days\": 365\n}"
+            },
+            "url": {
+              "raw": "{{mcp_host_url}}/consent/update",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["consent", "update"]
+            },
+            "description": "Update consent level. Valid values: 'full_profile', 'limited_anonymized', 'minimal_pseudonymous'"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Consent Audit Log",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/consent/audit-log",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["consent", "audit-log"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Export User Data",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/consent/export-data",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["consent", "export-data"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

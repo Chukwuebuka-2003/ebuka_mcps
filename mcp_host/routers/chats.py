@@ -17,6 +17,7 @@ from mcp_host.schemas.chats import (
     ChatSessionResponse,
     UpdateChatTitleRequest,
     ChatMessageResponse,
+    FileUploadStatusResponse,
 )
 from mcp_host.utils import parse_upload_metadata
 from mcp_host.services.chats import ChatService
@@ -38,10 +39,22 @@ async def upload_student_file(
     background_tasks: BackgroundTasks,
     meta: UploadMetadata = Depends(parse_upload_metadata),
     file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
 ):
     """Upload a student file with metadata, process in background."""
     logger.info(f"📤 File upload request received: {file.filename}")
-    return await ChatService.upload_student_file(request, background_tasks, meta, file)
+    return await ChatService.upload_student_file(request, background_tasks, meta, file, db)
+
+
+@chat_router.get("/files/{file_id}/status", response_model=FileUploadStatusResponse)
+async def get_file_upload_status(
+    file_id: str,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Check the status of an uploaded file."""
+    logger.info(f"🔍 File status request for: {file_id}")
+    return await ChatService.get_file_upload_status(db, file_id, str(current_user.id))
 
 
 @chat_router.get("/events/{chat_session_id}")

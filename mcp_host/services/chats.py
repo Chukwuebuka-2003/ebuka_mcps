@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from fastapi import Request, BackgroundTasks, HTTPException, UploadFile
 import asyncio
 from mcp_host.utils import call_mcp_server_tool
-from mcp_host.models.chats import ChatSession, ChatMessage
+from mcp_host.models.chats import ChatSession, ChatMessage, FileUpload, FileUploadStatus
 from mcp_host.schemas.chats import (
     ChatSessionResponse,
     ChatMessageResponse,
@@ -27,6 +27,7 @@ class ChatService:
         background_tasks: BackgroundTasks,
         meta: UploadMetadata,
         file: UploadFile,
+        db: AsyncSession,
     ):
         try:
             file_content = await file.read()
@@ -34,19 +35,37 @@ class ChatService:
                 raise HTTPException(status_code=400, detail="Uploaded file is empty")
 
             filename = file.filename or "unnamed_file"
+
+            # Create file upload tracking record
+            file_id = str(uuid.uuid4())
+            file_upload = FileUpload(
+                id=file_id,
+                user_id=meta.student_id,
+                filename=filename,
+                subject=meta.subject,
+                topic=meta.topic,
+                status=FileUploadStatus.PENDING,
+            )
+            db.add(file_upload)
+            await db.commit()
+            await db.refresh(file_upload)
+
             response = {
                 "status": "success",
                 "message": "File received; background processing started.",
+                "file_id": file_id,
             }
 
             background_tasks.add_task(
                 ChatService._process_uploaded_file,
                 request.app.state.storage_manager,
                 request.app.state.agent_server.mcp_client,
+                request.app.state.db_session_maker,
                 file_content,
                 filename,
                 file.content_type or "application/octet-stream",
                 meta,
+                file_id,
             )
 
             return response
@@ -58,12 +77,30 @@ class ChatService:
     def _process_uploaded_file(
         storage_manager,
         mcp_client,
+        db_session_maker,
         file_content: bytes,
         filename: str,
         content_type: str,
         meta: UploadMetadata,
+        file_id: str,
     ):
+        async def update_status(status: FileUploadStatus, blob_name: str = None, error_msg: str = None):
+            async with db_session_maker() as db:
+                result = await db.execute(select(FileUpload).where(FileUpload.id == file_id))
+                file_record = result.scalar_one_or_none()
+                if file_record:
+                    file_record.status = status
+                    file_record.updated_at = datetime.now(timezone.utc)
+                    if blob_name:
+                        file_record.blob_name = blob_name
+                    if error_msg:
+                        file_record.error_message = error_msg
+                    await db.commit()
+
         try:
+            # Update status to PROCESSING
+            asyncio.run(update_status(FileUploadStatus.PROCESSING))
+
             upload_result = storage_manager.upload_file(
                 file_content=file_content,
                 student_id=meta.student_id,
@@ -78,12 +115,18 @@ class ChatService:
             )
 
             if upload_result.get("status") != "success":
-                logger.error(f"Background upload failed: {upload_result}")
+                error_msg = f"Background upload failed: {upload_result}"
+                logger.error(error_msg)
+                asyncio.run(update_status(FileUploadStatus.FAILED, error_msg=error_msg))
                 return
+
+            blob_name = upload_result["blob_name"]
 
             mcp_sessions = getattr(mcp_client, "sessions", None)
             if not mcp_sessions:
-                logger.error("MCP sessions not available")
+                error_msg = "MCP sessions not available"
+                logger.error(error_msg)
+                asyncio.run(update_status(FileUploadStatus.FAILED, blob_name=blob_name, error_msg=error_msg))
                 return
 
             asyncio.run(
@@ -94,7 +137,7 @@ class ChatService:
                     tool_args={
                         "user_id": meta.student_id,
                         "filename": filename,
-                        "file_id": upload_result["blob_name"],
+                        "file_id": blob_name,
                         "subject": meta.subject,
                         "topic": meta.topic,
                         "difficulty_level": meta.difficulty_level,
@@ -102,9 +145,14 @@ class ChatService:
                     },
                 )
             )
+
+            # Update status to COMPLETED
+            asyncio.run(update_status(FileUploadStatus.COMPLETED, blob_name=blob_name))
             logger.info(f"Completed background processing for {filename}")
         except Exception as e:
-            logger.exception(f"Background task failed: {e}")
+            error_msg = f"Background task failed: {e}"
+            logger.exception(error_msg)
+            asyncio.run(update_status(FileUploadStatus.FAILED, error_msg=error_msg))
 
     @staticmethod
     async def chat_endpoint(
@@ -261,6 +309,23 @@ class ChatService:
         except Exception as e:
             logger.error(f"Error getting agent info: {e}")
             return {"status": "error", "message": str(e)}
+
+    @staticmethod
+    async def get_file_upload_status(db: AsyncSession, file_id: str, user_id: str):
+        """Get the status of a file upload."""
+        result = await db.execute(
+            select(FileUpload).where(
+                FileUpload.id == file_id,
+                FileUpload.user_id == user_id
+            )
+        )
+        file_record = result.scalar_one_or_none()
+        if not file_record:
+            raise HTTPException(
+                status_code=404,
+                detail="File upload record not found or access denied"
+            )
+        return file_record
 
     @staticmethod
     async def store_chat_message(

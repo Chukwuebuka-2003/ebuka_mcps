@@ -78,3 +78,26 @@ class ChatHistoryResponse(BaseModel):
 
 class UpdateChatTitleRequest(BaseModel):
     title: str = Field(..., min_length=1)
+
+
+# File Upload Status Schemas
+class FileUploadStatusEnum(str, Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class FileUploadStatusResponse(BaseModel):
+    id: str
+    filename: str
+    subject: str
+    topic: str
+    status: FileUploadStatusEnum
+    chunks_processed: int
+    error_message: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
