@@ -1,5 +1,5 @@
 build:
   docker:
-    web: Dockerfile.rag_server
+    web: Dockerfile.mcp_host
 run:
-  web: python rag_mcp_server.py
+  web: sh -c "alembic upgrade head && uvicorn mcp_host.main:app --host 0.0.0.0 --port $PORT"
