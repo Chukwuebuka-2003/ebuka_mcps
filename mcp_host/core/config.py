@@ -44,7 +44,7 @@ class Settings(BaseSettings):
         return (
             f"postgresql://{self.POSTGRES_USER}:{quote_plus(self.POSTGRES_PASSWORD)}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-            f"?sslmode=require&prepared_statement_cache_size=0"
+            f"?sslmode=require"
         )
 
     class Config:
