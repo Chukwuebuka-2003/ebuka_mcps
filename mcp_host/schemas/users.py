@@ -4,12 +4,13 @@ from datetime import time, datetime
 from typing import Optional
 
 
-
 class UserCreate(BaseModel):
     name: str = Field(..., description="The name of the user")
     email: Optional[str] = Field(default=None, description="The email of the user")
     phone_number: str = Field(..., description="The phone number of the user")
-    
+    password: str = Field(
+        ..., description="The password for the user"
+    )  # NEW: Added password field
 
 
 class UserResponse(BaseModel):
@@ -30,4 +31,3 @@ class UserResponse(BaseModel):
 class UserUpdate(BaseModel):
     name: Optional[str] = Field(default=None, description="The name of the user")
     email: Optional[str] = Field(default=None, description="The email of the user")
-    

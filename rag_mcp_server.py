@@ -71,7 +71,7 @@ file_processor = FileProcessor(rag_system)
 
 
 @mcp.custom_route("/health", methods=["GET"])
-async def health_check():
+async def health_check(request):
     """Health check endpoint."""
     return JSONResponse(
         {
@@ -89,6 +89,11 @@ async def health_check():
 
     This tool performs a contextual search across a user's private knowledge base
     using semantic and keyword-based retrieval. Returns responses with document citations.
+
+    IMPORTANT: The 'query' parameter must be a single string, NOT a list or array.
+    Use comma or space separated keywords in one string.
+    Example: "calculus derivatives, power rule, differentiation"
+    NOT: ["calculus", "derivatives", "power rule"]
     """,
 )
 def knowledge_base_retrieval(
@@ -97,9 +102,9 @@ def knowledge_base_retrieval(
         str, Field(description="Unique ID of the user whose content is being searched.")
     ],
     query: Annotated[
-        str,
+        str | list[str],  # Accept both string and list, we'll convert list to string
         Field(
-            description="Natural language search query or keywords to match against the user's stored content."
+            description="A SINGLE STRING containing natural language search query or comma/space-separated keywords. DO NOT pass an array or list. Example: 'photosynthesis chlorophyll light reaction' NOT ['photosynthesis', 'chlorophyll']"
         ),
     ],
     subject: Annotated[
@@ -124,7 +129,14 @@ def knowledge_base_retrieval(
         print(f"=" * 80)
         print(f"🔍 knowledge_base_retrieval called")
         print(f"  user_id: {user_id}")
-        print(f"  query: {query}")
+        print(f"  query (before conversion): {query} (type: {type(query).__name__})")
+
+        # Auto-convert list to string if needed (for AI models that ignore type hints)
+        if isinstance(query, list):
+            query = " ".join(query)
+            print(f"  ⚠️  Auto-converted query from list to string: {query}")
+
+        print(f"  query (after conversion): {query}")
         print(f"  subject: {subject}")
         print(f"  topic: {topic}")
         print(f"  top_k: {top_k}")

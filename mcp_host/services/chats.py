@@ -2,7 +2,7 @@ import uuid
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi.responses import StreamingResponse
 from fastapi import Request, BackgroundTasks, HTTPException, UploadFile
 import asyncio
@@ -220,6 +220,8 @@ class ChatService:
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
         )
+
+    @staticmethod
 
     @staticmethod
     async def get_session_history(request: Request, chat_session_id: str):

@@ -87,11 +87,11 @@ YOU MUST CALL THIS TOOL FOR EVERY EDUCATIONAL QUERY.
 
 Steps:
 1. Read user_id from <current_session_context> section above
-2. Formulate search query with keywords and synonyms
+2. Formulate search query with keywords and synonyms (MUST be a single string)
 3. Determine subject and topic
 4. Call knowledge_base_retrieval with:
    - user_id: <the exact value from context>
-   - query: <your formulated search query>
+   - query: <single string with comma or space separated keywords> (NOT an array/list)
    - subject: <inferred subject>
    - topic: <inferred topic>
    - top_k: 5 (default, adjust 3-10 as needed)
@@ -100,12 +100,14 @@ Steps:
 </mandatory_usage>
 
 <parameter_examples>
+CRITICAL: The 'query' parameter MUST be a single string, NOT a list or array.
+
 Question: "What is the derivative of x^2?"
 If <current_session_context> shows: user_id="student-456"
 Then call:
 knowledge_base_retrieval(
     user_id="student-456",  # ← EXACT value from context
-    query="derivative of x^2, x squared differentiation, power rule, calculus",
+    query="derivative of x^2, x squared differentiation, power rule, calculus",  # ← Single string with comma-separated keywords
     subject="Mathematics",
     topic="Calculus",
     top_k=5
@@ -116,11 +118,30 @@ If <current_session_context> shows: user_id="abc-789-xyz"
 Then call:
 knowledge_base_retrieval(
     user_id="abc-789-xyz",  # ← EXACT value from context
-    query="photosynthesis process, light reaction, dark reaction, plant biology",
+    query="photosynthesis process, light reaction, dark reaction, plant biology",  # ← Single string, NOT ["photosynthesis", "process", ...]
     subject="Biology",
     topic="Plant Biology",
     top_k=5
 )
+
+Question: "Who is John Doe and what is his work experience?"
+If <current_session_context> shows: user_id="user-123"
+Then call:
+knowledge_base_retrieval(
+    user_id="user-123",
+    query="John Doe work experience employment history resume CV biography",
+    subject="General Knowledge",  # ← Use "General Knowledge" for personal documents, resumes, CVs
+    topic="Personal Documents",
+    top_k=5
+)
+
+WRONG Examples (DO NOT DO THIS):
+❌ query=["Calculus study guide", "summary", "review sheet"]  # This is WRONG - array/list format
+❌ query=["photosynthesis"]  # This is WRONG - array/list format
+
+CORRECT Examples:
+✅ query="Calculus study guide, summary, review sheet, exam prep"  # Single string with keywords
+✅ query="photosynthesis process chlorophyll"  # Single string with space or comma separated terms
 </parameter_examples>
 </knowledge_base_retrieval>
 </tool_orchestration_strategy>

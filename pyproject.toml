@@ -28,5 +28,6 @@ dependencies = [
     "alembic>=1.17.0",
     "sqlalchemy[asyncio]>=2.0.44",
     "asyncpg>=0.30.0",
-    "argon2-cffi>=23.0.0"
+    "argon2-cffi>=23.0.0",
+    "litellm"
 ]

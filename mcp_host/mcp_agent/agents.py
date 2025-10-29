@@ -24,6 +24,7 @@ class TutoringRagAgent:
         self.agent = None
         self.mcp_client = None
         self.base_system_instruction = None
+        self._agent_lock = asyncio.Lock()  # Prevent concurrent agent runs
 
     async def initialized(self):
         """Initialize the TutoringRagAgent server."""
@@ -98,18 +99,20 @@ class TutoringRagAgent:
             session_id: Session identifier for conversation continuity
             user_context: Dictionary containing user information (user_id, email, name)
         """
-        try:
-            logger.info(f"Agent received query: {query[:100]}...")
-            logger.info(f"Session ID: {session_id}")
-            logger.info(f"User context: {user_context}")
+        # Acquire lock to prevent concurrent agent execution
+        async with self._agent_lock:
+            try:
+                logger.info(f"Agent received query: {query[:100]}...")
+                logger.info(f"Session ID: {session_id}")
+                logger.info(f"User context: {user_context}")
 
-            # ============= FIX: Inject user_id into system instruction =============
-            if user_context and "user_id" in user_context:
-                user_id = user_context["user_id"]
-                logger.info(f"📝 Injecting user_id into system instruction: {user_id}")
+                # ============= FIX: Inject user_id into system instruction =============
+                if user_context and "user_id" in user_context:
+                    user_id = user_context["user_id"]
+                    logger.info(f"📝 Injecting user_id into system instruction: {user_id}")
 
-                # Create a modified system instruction with the actual user_id
-                modified_instruction = f"""{self.base_system_instruction}
+                    # Create a modified system instruction with the actual user_id
+                    modified_instruction = f"""{self.base_system_instruction}
 
 <current_session_context>
 🔑 CURRENT USER ID: {user_id}
@@ -126,34 +129,34 @@ Current user information:
 </current_session_context>
 """
 
-                # Update the agent's system instruction for this query
-                self.agent.system_instruction = modified_instruction
-                logger.info("✅ System instruction updated with user_id")
-            else:
-                logger.warning("⚠️  No user context provided - using base instruction")
-            # =======================================================================
+                    # Update the agent's system instruction for this query
+                    self.agent.system_instruction = modified_instruction
+                    logger.info("✅ System instruction updated with user_id")
+                else:
+                    logger.warning("⚠️  No user context provided - using base instruction")
+                # =======================================================================
 
-            # Run the agent with timeout
-            logger.info("Starting agent.run()...")
-            result = await asyncio.wait_for(
-                self.agent.run(query, session_id), timeout=45.0
-            )
-            logger.info(f"Agent.run() completed")
+                # Run the agent with timeout
+                logger.info("Starting agent.run()...")
+                result = await asyncio.wait_for(
+                    self.agent.run(query, session_id), timeout=45.0
+                )
+                logger.info(f"Agent.run() completed")
 
-            return result
+                return result
 
-        except asyncio.TimeoutError:
-            logger.error("Agent.run() timed out after 45 seconds")
-            return {
-                "response": "I apologize, but processing your request took too long. Please try a simpler question.",
-                "session_id": session_id or "timeout_session",
-            }
-        except Exception as e:
-            logger.error(f"Failed to process query: {e}", exc_info=True)
-            return {
-                "response": f"I apologize, but I encountered an error: {str(e)}",
-                "session_id": session_id or "error_session",
-            }
+            except asyncio.TimeoutError:
+                logger.error("Agent.run() timed out after 45 seconds")
+                return {
+                    "response": "I apologize, but processing your request took too long. Please try a simpler question.",
+                    "session_id": session_id or "timeout_session",
+                }
+            except Exception as e:
+                logger.error(f"Failed to process query: {e}", exc_info=True)
+                return {
+                    "response": f"I apologize, but I encountered an error: {str(e)}",
+                    "session_id": session_id or "error_session",
+                }
 
     async def get_session_history(self, session_id: str) -> list[dict]:
         """Get conversation history for a session."""

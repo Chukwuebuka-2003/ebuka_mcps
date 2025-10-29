@@ -15,7 +15,9 @@ services:
 
   # RAG MCP Server - Provides RAG tools via MCP protocol
   rag_mcp_server:
-    image: chukwuebuka2040/rag-mcp-server:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.rag_server
     container_name: rag_mcp_server
     ports:
       - "9000:9000"
@@ -33,7 +35,9 @@ services:
 
   # MCP Host - Agent orchestration layer
   mcp_host:
-    image: chukwuebuka2040/mcp-host:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp_host
     container_name: mcp_host
     ports:
       - "8000:8000"

@@ -4,7 +4,7 @@ import jwt
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Query, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -114,3 +114,5 @@ async def get_current_user(
         return user
     except jwt.PyJWTError:
         raise credentials_exception
+
+
