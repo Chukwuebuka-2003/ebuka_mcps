@@ -299,6 +299,20 @@ class ChatService:
             logger.info(f"Passing user context to agent: {user_context}")
             # ===========================================================
 
+            # ============= NEW: Fetch chat history for context =============
+            chat_history = await ChatService.get_user_chat_history(
+                db=db,
+                user_id=str(current_user.id),
+                limit=20,  # Last 20 messages from previous sessions
+                exclude_current_session=chat_session_id
+            )
+
+            # Add chat history to user context
+            if chat_history:
+                user_context["chat_history"] = chat_history
+                logger.info(f"📚 Including {len(chat_history)} historical messages for context")
+            # ===========================================================
+
             # Call agent with timeout
             logger.info("Calling agent...")
             try:
@@ -306,7 +320,7 @@ class ChatService:
                     request.app.state.agent_server.handle_query(
                         query=user_query,
                         session_id=chat_session_id,
-                        user_context=user_context,  # FIX: Pass user context
+                        user_context=user_context,  # FIX: Pass user context with history
                     ),
                     timeout=60.0,
                 )
@@ -376,6 +390,59 @@ class ChatService:
                 ).encode("utf-8")
                 + b"\n"
             )
+
+    @staticmethod
+    async def get_user_chat_history(
+        db: AsyncSession,
+        user_id: str,
+        limit: int = 20,
+        exclude_current_session: Optional[str] = None
+    ) -> list[dict]:
+        """
+        Fetch recent chat history for a user across all sessions.
+
+        Args:
+            db: Database session
+            user_id: User ID
+            limit: Maximum number of messages to fetch
+            exclude_current_session: Session ID to exclude (current session)
+
+        Returns:
+            List of chat messages with role and content
+        """
+        try:
+            from sqlalchemy import desc
+
+            query = (
+                select(ChatMessage)
+                .join(ChatSession)
+                .where(ChatSession.user_id == str(user_id))
+                .order_by(desc(ChatMessage.created_at))
+                .limit(limit)
+            )
+
+            if exclude_current_session:
+                query = query.where(ChatSession.chat_session_id != exclude_current_session)
+
+            result = await db.execute(query)
+            messages = result.scalars().all()
+
+            # Reverse to get chronological order
+            history = [
+                {
+                    "role": msg.role,
+                    "content": msg.content,
+                    "timestamp": msg.created_at.isoformat() if msg.created_at else None
+                }
+                for msg in reversed(messages)
+            ]
+
+            logger.info(f"📚 Retrieved {len(history)} historical messages for user {user_id}")
+            return history
+
+        except Exception as e:
+            logger.error(f"Failed to fetch chat history: {e}")
+            return []
 
     @staticmethod
     async def stream_events(request: Request, chat_session_id: str):

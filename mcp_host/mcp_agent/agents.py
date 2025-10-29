@@ -110,12 +110,34 @@ class TutoringRagAgent:
                 logger.info(f"Session ID: {session_id}")
                 logger.info(f"User context: {user_context}")
 
-                # ============= FIX: Inject user_id into system instruction =============
+                # ============= FIX: Inject user_id and chat history into system instruction =============
                 if user_context and "user_id" in user_context:
                     user_id = user_context["user_id"]
                     logger.info(f"📝 Injecting user_id into system instruction: {user_id}")
 
-                    # Create a modified system instruction with the actual user_id
+                    # Build chat history context if available
+                    chat_history_context = ""
+                    if "chat_history" in user_context and user_context["chat_history"]:
+                        history_messages = user_context["chat_history"]
+                        logger.info(f"📚 Including {len(history_messages)} historical messages")
+
+                        history_text = "\n".join([
+                            f"[{msg.get('timestamp', 'Unknown time')}] {msg['role'].upper()}: {msg['content'][:200]}{'...' if len(msg['content']) > 200 else ''}"
+                            for msg in history_messages
+                        ])
+
+                        chat_history_context = f"""
+
+<previous_conversation_history>
+The student has had previous conversations with you. Here are their recent messages for context:
+
+{history_text}
+
+Remember these previous interactions when responding. Reference them if relevant, but focus on the current question.
+</previous_conversation_history>
+"""
+
+                    # Create a modified system instruction with the actual user_id and history
                     modified_instruction = f"""{self.base_system_instruction}
 
 <current_session_context>
@@ -131,11 +153,12 @@ Current user information:
 - Name: {user_context.get("name", "Unknown")}
 - Email: {user_context.get("email", "Unknown")}
 </current_session_context>
+{chat_history_context}
 """
 
                     # Update the agent's system instruction for this query
                     self.agent.system_instruction = modified_instruction
-                    logger.info("✅ System instruction updated with user_id")
+                    logger.info("✅ System instruction updated with user_id and chat history")
                 else:
                     logger.warning("⚠️  No user context provided - using base instruction")
                 # =======================================================================
