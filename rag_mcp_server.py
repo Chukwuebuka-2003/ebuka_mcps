@@ -104,7 +104,15 @@ def knowledge_base_retrieval(
     query: Annotated[
         str,  # MUST be a string - arrays/lists will be rejected
         Field(
-            description="A SINGLE STRING containing natural language search query or comma/space-separated keywords. CRITICAL: This MUST be a string, NOT an array or list. Example: 'photosynthesis chlorophyll light reaction' NOT ['photosynthesis', 'chlorophyll']. Use comma or space separated keywords in a single string."
+            description="A SINGLE STRING containing natural language search query or comma/space-separated keywords. CRITICAL: This MUST be a string, NOT an array or list. Example: 'photosynthesis chlorophyll light reaction' NOT ['photosynthesis', 'chlorophyll']. Use comma or space separated keywords in a single string.",
+            json_schema_extra={
+                "type": "string",
+                "examples": [
+                    "quadratic equation, quadratic formula, solving polynomials",
+                    "photosynthesis process light reaction chlorophyll",
+                    "World War II causes treaty of versailles"
+                ]
+            }
         ),
     ],
     subject: Annotated[
