@@ -100,6 +100,37 @@ class ProgressService:
         return [LearningSessionResponse.model_validate(s) for s in sessions]
 
     @staticmethod
+    async def get_user_subjects(db: AsyncSession, user_id: UUID) -> List[Dict[str, Any]]:
+        """Get all subjects a user has studied with metadata"""
+        # Get unique subjects from learning sessions with counts
+        query = (
+            select(
+                LearningSession.subject,
+                func.count(LearningSession.id).label("session_count"),
+                func.sum(LearningSession.duration_minutes).label("total_minutes"),
+                func.max(LearningSession.session_date).label("last_studied"),
+                func.count(func.distinct(LearningSession.topic)).label("topics_count")
+            )
+            .where(LearningSession.user_id == user_id)
+            .group_by(LearningSession.subject)
+            .order_by(desc(func.max(LearningSession.session_date)))
+        )
+
+        result = await db.execute(query)
+        subjects = result.all()
+
+        return [
+            {
+                "subject": row.subject,
+                "session_count": row.session_count,
+                "total_minutes": int(row.total_minutes or 0),
+                "last_studied": row.last_studied,
+                "topics_count": row.topics_count
+            }
+            for row in subjects
+        ]
+
+    @staticmethod
     async def calculate_weekly_activity(
         db: AsyncSession, user_id: UUID, subject: str, days_back: int = 90
     ) -> List[WeeklyActivity]:

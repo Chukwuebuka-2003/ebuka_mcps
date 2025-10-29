@@ -391,6 +391,25 @@
       "name": "4. Progress Tracking",
       "item": [
         {
+          "name": "Get User Subjects",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_host_url}}/progress/subjects",
+              "host": ["{{mcp_host_url}}"],
+              "path": ["progress", "subjects"]
+            },
+            "description": "Get all subjects the user has studied with metadata:\n- subject: Subject name\n- session_count: Number of learning sessions\n- total_minutes: Total study time in minutes\n- last_studied: Most recent session date\n- topics_count: Number of distinct topics studied\n\nUse this to populate subject dropdowns or display learning overview."
+          },
+          "response": []
+        },
+        {
           "name": "Create Learning Session",
           "request": {
             "method": "POST",

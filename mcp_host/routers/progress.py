@@ -77,6 +77,27 @@ async def get_learning_sessions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@progress_router.get("/subjects")
+async def get_user_subjects(
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get all subjects the current user has studied.
+
+    Returns subjects with metadata including session count,
+    total study time, last studied date, and topic count.
+    """
+    try:
+        subjects = await ProgressService.get_user_subjects(
+            db=db, user_id=current_user.id
+        )
+        return {"subjects": subjects}
+    except Exception as e:
+        logger.error(f"Failed to get user subjects: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============= Milestones =============
 
 
