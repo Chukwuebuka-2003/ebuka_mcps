@@ -37,6 +37,13 @@ class ChatService:
 
             filename = file.filename or "unnamed_file"
 
+            # Check if agent server and mcp_client are available
+            if not hasattr(request.app.state, 'agent_server'):
+                raise HTTPException(status_code=503, detail="Agent server not initialized")
+
+            if not hasattr(request.app.state.agent_server, 'mcp_client') or not request.app.state.agent_server.mcp_client:
+                raise HTTPException(status_code=503, detail="MCP client not initialized")
+
             # Create file upload tracking record
             file_id = str(uuid.uuid4())
             file_upload = FileUpload(
@@ -127,10 +134,18 @@ class ChatService:
 
             blob_name = upload_result["blob_name"]
 
+            # Check if mcp_client exists and has sessions
+            if not mcp_client:
+                error_msg = "MCP client not available"
+                logger.error(error_msg)
+                update_status(FileUploadStatus.FAILED, blob_name=blob_name, error_msg=error_msg)
+                return
+
             mcp_sessions = getattr(mcp_client, "sessions", None)
             if not mcp_sessions:
-                error_msg = "MCP sessions not available"
+                error_msg = "MCP sessions not available - client may not be fully initialized"
                 logger.error(error_msg)
+                logger.error(f"MCP client attributes: {dir(mcp_client)}")
                 update_status(FileUploadStatus.FAILED, blob_name=blob_name, error_msg=error_msg)
                 return
 
