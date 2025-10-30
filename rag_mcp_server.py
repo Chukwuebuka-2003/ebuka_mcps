@@ -46,7 +46,16 @@ class AuthHeaderMiddleware(Middleware):
             # If query is a list/array, convert it to a comma-separated string
             if isinstance(query_value, list):
                 converted_query = ", ".join(str(item) for item in query_value)
-                context.message.arguments["query"] = converted_query
+
+                # Create a new arguments dict with the converted query
+                new_args = {**tool_args, "query": converted_query}
+
+                # Create a new message with the updated arguments
+                new_message = context.message.model_copy(update={"arguments": new_args})
+
+                # Create a new context with the updated message
+                context = context.copy(message=new_message)
+
                 print(f"⚠️  MIDDLEWARE: Converted query array to string:")
                 print(f"   Original: {query_value}")
                 print(f"   Converted: {converted_query}")
