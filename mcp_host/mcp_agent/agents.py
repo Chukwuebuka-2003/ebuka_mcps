@@ -80,6 +80,10 @@ class TutoringRagAgent:
         await self.agent.connect_mcp_servers()
         self.mcp_client = self.agent.mcp_client
 
+        # CRITICAL FIX: Wrap MCP client to preprocess tool arguments
+        # This ensures query arrays are converted to strings BEFORE sending to RAG server
+        await self._wrap_mcp_client_for_preprocessing()
+
         # Log available tools
         if hasattr(self.mcp_client, "sessions"):
             logger.info(f"MCP Sessions: {list(self.mcp_client.sessions.keys())}")
@@ -89,6 +93,47 @@ class TutoringRagAgent:
                 )
 
         logger.info("MCP servers connected successfully")
+
+    async def _wrap_mcp_client_for_preprocessing(self):
+        """
+        Wrap the MCP client's call_tool method to preprocess arguments.
+        Specifically converts query arrays to strings for knowledge_base_retrieval.
+        """
+        if not hasattr(self.mcp_client, "sessions"):
+            logger.warning("MCP client has no sessions attribute, skipping preprocessing wrapper")
+            return
+
+        logger.info("🔧 Wrapping MCP client for argument preprocessing...")
+
+        # Wrap each session's call_tool method
+        for server_name, session_info in self.mcp_client.sessions.items():
+            if "session" in session_info:
+                session = session_info["session"]
+                original_call_tool = session.call_tool
+
+                async def wrapped_call_tool(tool_name: str, arguments: dict, _original=original_call_tool, _server=server_name):
+                    """Wrapper that preprocesses tool arguments before calling"""
+                    # Preprocess knowledge_base_retrieval query parameter
+                    if tool_name == "knowledge_base_retrieval" and "query" in arguments:
+                        query_value = arguments["query"]
+
+                        if isinstance(query_value, list):
+                            # Convert array to comma-separated string
+                            converted_query = ", ".join(str(item) for item in query_value)
+                            arguments = {**arguments, "query": converted_query}
+
+                            logger.info(f"🔄 MCP HOST PREPROCESSING: Converted query array to string")
+                            logger.info(f"   Server: {_server}")
+                            logger.info(f"   Tool: {tool_name}")
+                            logger.info(f"   Original: {query_value}")
+                            logger.info(f"   Converted: {converted_query}")
+
+                    # Call the original method with preprocessed arguments
+                    return await _original(tool_name, arguments)
+
+                # Replace the method
+                session.call_tool = wrapped_call_tool
+                logger.info(f"✅ Wrapped call_tool for server: {server_name}")
 
     async def handle_query(
         self,
