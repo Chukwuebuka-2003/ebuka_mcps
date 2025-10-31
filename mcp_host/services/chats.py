@@ -480,10 +480,25 @@ Subject:"""
                 "user_id": str(current_user.id),
             }
 
-            # Add file_id to metadata if provided
+            # Add file_id and file info to metadata if provided
             if file_id:
                 metadata["file_id"] = file_id
                 logger.info(f"Adding file_id to message metadata: {file_id}")
+
+                # Fetch and include file info in metadata
+                try:
+                    file_info = await ChatService.get_file_info_by_id(db, file_id, str(current_user.id))
+                    if file_info:
+                        metadata["file_info"] = {
+                            "filename": file_info.filename,
+                            "subject": file_info.subject,
+                            "topic": file_info.topic,
+                            "status": file_info.status.value,
+                            "uploaded_at": file_info.created_at.isoformat() if file_info.created_at else None,
+                        }
+                        logger.info(f"Added file info to metadata: {file_info.filename}")
+                except Exception as e:
+                    logger.warning(f"Could not fetch file info for file_id {file_id}: {e}")
 
             try:
                 await ChatService.store_chat_message(
@@ -728,6 +743,24 @@ Subject:"""
                 detail="File upload record not found or access denied"
             )
         return file_record
+
+    @staticmethod
+    async def get_file_info_by_id(db: AsyncSession, file_id: str, user_id: str) -> Optional[FileUpload]:
+        """
+        Get file info by file_id. Returns None if not found.
+        This is a non-raising version for internal use.
+        """
+        try:
+            result = await db.execute(
+                select(FileUpload).where(
+                    FileUpload.id == file_id,
+                    FileUpload.user_id == user_id
+                )
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Error fetching file info: {e}")
+            return None
 
     @staticmethod
     async def store_chat_message(

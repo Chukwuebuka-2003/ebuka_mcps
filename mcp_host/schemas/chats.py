@@ -110,3 +110,17 @@ class FileUploadStatusResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class FileInfoResponse(BaseModel):
+    """Simplified file info response for chat context."""
+    id: str
+    filename: str
+    subject: str
+    topic: str
+    status: FileUploadStatusEnum
+    uploaded_at: datetime = Field(..., alias="created_at")
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True

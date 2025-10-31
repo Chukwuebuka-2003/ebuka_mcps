@@ -18,6 +18,7 @@ from mcp_host.schemas.chats import (
     UpdateChatTitleRequest,
     ChatMessageResponse,
     FileUploadStatusResponse,
+    FileInfoResponse,
 )
 from mcp_host.utils import parse_upload_metadata
 from mcp_host.services.chats import ChatService
@@ -55,6 +56,23 @@ async def get_file_upload_status(
     """Check the status of an uploaded file."""
     logger.info(f"🔍 File status request for: {file_id}")
     return await ChatService.get_file_upload_status(db, file_id, str(current_user.id))
+
+
+@chat_router.get("/files/{file_id}/info", response_model=FileInfoResponse)
+async def get_file_info(
+    file_id: str,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get file information by file_id (for chat context)."""
+    logger.info(f"📄 File info request for: {file_id}")
+    file_info = await ChatService.get_file_info_by_id(db, file_id, str(current_user.id))
+    if not file_info:
+        raise HTTPException(
+            status_code=404,
+            detail="File not found or access denied"
+        )
+    return file_info
 
 
 @chat_router.get("/events/{chat_session_id}")
