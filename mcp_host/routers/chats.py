@@ -110,7 +110,10 @@ async def chat(
         logger.info(f"✅ Chat session ID: {get_chat_session_id}")
 
         user_query = chat_message_request.messages[-1].content
+        file_id = chat_message_request.messages[-1].file_id
         logger.info(f"📝 Processing query: '{user_query[:100]}...'")
+        if file_id:
+            logger.info(f"📎 File attached: {file_id}")
 
         return StreamingResponse(
             ChatService.chat_endpoint(
@@ -119,6 +122,7 @@ async def chat(
                 chat_session_id=get_chat_session_id,
                 current_user=current_user,
                 db=db,
+                file_id=file_id,
             ),
             media_type="text/plain",
             headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},

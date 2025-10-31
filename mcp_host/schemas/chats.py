@@ -14,6 +14,9 @@ class MessageRole(str, Enum):
 class MessageSchema(BaseModel):
     role: MessageRole
     content: str
+    file_id: Optional[str] = Field(
+        None, description="File ID to associate with this message for tracking uploaded files"
+    )
 
 
 class ChatMessageRequest(BaseModel):

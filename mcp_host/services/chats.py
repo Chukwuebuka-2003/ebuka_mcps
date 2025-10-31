@@ -350,7 +350,7 @@ Subject:"""
 
     @staticmethod
     async def chat_endpoint(
-        request: Request, user_query: str, chat_session_id: str, current_user, db
+        request: Request, user_query: str, chat_session_id: str, current_user, db, file_id: Optional[str] = None
     ):
         """Stream chat responses from the Tutor RAG Agent."""
         try:
@@ -361,6 +361,11 @@ Subject:"""
                 "chat_session_id": chat_session_id,
                 "user_id": str(current_user.id),
             }
+
+            # Add file_id to metadata if provided
+            if file_id:
+                metadata["file_id"] = file_id
+                logger.info(f"Adding file_id to message metadata: {file_id}")
 
             try:
                 await ChatService.store_chat_message(
