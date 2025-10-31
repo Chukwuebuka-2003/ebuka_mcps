@@ -18,8 +18,14 @@ from rag.system import TutoringRAGSystem
 
 class AuthHeaderMiddleware(Middleware):
     async def on_call_tool(self, context: MiddlewareContext, call_next):
+        print("=" * 80)
+        print("🔧 MIDDLEWARE: Processing tool call")
+
         headers = get_http_headers()
         auth = headers.get("authorization")
+
+        print(f"📋 Headers received: {dict(headers)}")
+        print(f"🔑 Auth header present: {bool(auth)}")
 
         is_verified = False
         payload = None
@@ -29,17 +35,26 @@ class AuthHeaderMiddleware(Middleware):
             try:
                 payload = verify_server_token(token)
                 is_verified = True
-            except Exception:
+                print("✅ Token verified successfully")
+            except Exception as e:
                 is_verified = False
+                print(f"❌ Token verification failed: {e}")
+        else:
+            print("❌ No valid Bearer token found")
 
         context.fastmcp_context.set_state("auth_verified", is_verified)
         context.fastmcp_context.set_state("auth_payload", payload)
 
-        # CRITICAL FIX: Preprocess query parameter for knowledge_base_retrieval
-        # Convert array to comma-separated string if the agent sends an array
+        # Log incoming tool call details
         tool_name = context.message.name
         tool_args = context.message.arguments or {}
 
+        print(f"🔧 Tool name: {tool_name}")
+        print(f"📦 Tool arguments: {json.dumps(tool_args, indent=2)}")
+        print(f"🔒 Auth verified: {is_verified}")
+
+        # CRITICAL FIX: Preprocess query parameter for knowledge_base_retrieval
+        # Convert array to comma-separated string if the agent sends an array
         if tool_name == "knowledge_base_retrieval" and "query" in tool_args:
             query_value = tool_args["query"]
 
@@ -60,7 +75,18 @@ class AuthHeaderMiddleware(Middleware):
                 print(f"   Original: {query_value}")
                 print(f"   Converted: {converted_query}")
 
-        return await call_next(context)
+        print("=" * 80)
+
+        try:
+            result = await call_next(context)
+            print(f"✅ Tool execution completed successfully")
+            return result
+        except Exception as e:
+            print(f"❌ Tool execution failed: {e}")
+            print(f"   Exception type: {type(e).__name__}")
+            import traceback
+            print(f"   Traceback: {traceback.format_exc()}")
+            raise
 
 
 mcp = FastMCP(
@@ -264,8 +290,21 @@ def process_existing_file(
     """
     Download the file from Azure and index it into the RAG system with citation metadata.
     """
+    print("=" * 80)
+    print("📁 UPLOAD_STUDENT_FILE: Starting file processing")
+    print(f"   user_id: {user_id}")
+    print(f"   filename: {filename}")
+    print(f"   file_id: {file_id}")
+    print(f"   subject: {subject}")
+    print(f"   topic: {topic}")
+    print(f"   difficulty_level: {difficulty_level}")
+    print(f"   document_title: {document_title}")
+    print(f"   description: {description}")
+    print("=" * 80)
+
     try:
         if not ctx.get_state("auth_verified"):
+            print("❌ Auth verification failed in tool")
             return ToolResult(
                 content=json.dumps(
                     {
@@ -275,15 +314,25 @@ def process_existing_file(
                 )
             )
 
-        file_extension = filename.lower().split(".")[-1]
-        if file_extension not in ["pdf", "docx", "doc"]:
-            raise ToolError(
-                f"Unsupported file type: {file_extension}. Only PDF and DOCX files are supported."
-            )
+        print("✅ Auth verified in tool")
 
+        file_extension = filename.lower().split(".")[-1]
+        print(f"📄 File extension: {file_extension}")
+
+        if file_extension not in ["pdf", "docx", "doc"]:
+            error_msg = f"Unsupported file type: {file_extension}. Only PDF and DOCX files are supported."
+            print(f"❌ {error_msg}")
+            raise ToolError(error_msg)
+
+        print(f"🔄 Downloading file from Azure: {file_id}")
         file_content = azure_storage.download_file(file_id)
+
         if file_content is None:
-            raise ToolError(f"File not found in storage: {file_id}")
+            error_msg = f"File not found in storage: {file_id}"
+            print(f"❌ {error_msg}")
+            raise ToolError(error_msg)
+
+        print(f"✅ File downloaded successfully ({len(file_content)} bytes)")
 
         metadata = {}
         if description:
