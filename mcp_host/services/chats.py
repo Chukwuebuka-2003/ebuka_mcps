@@ -361,11 +361,11 @@ Subject:"""
         file_id: str,
     ):
         """Async version of file processing for proper MCP client session handling"""
-        from mcp_host.database.db import get_async_db
+        from mcp_host.database.db import get_db
 
         async def update_status_async(status: FileUploadStatus, blob_name: str = None, error_msg: str = None):
             """Update file upload status using async database session"""
-            async for db in get_async_db():
+            async for db in get_db():
                 try:
                     from sqlalchemy import select
                     result = await db.execute(
