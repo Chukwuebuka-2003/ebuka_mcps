@@ -199,15 +199,17 @@ Subject:"""
                     logger.error(f"Failed to store file upload in chat history: {e}")
                     # Don't fail the upload if chat history storage fails
 
-            background_tasks.add_task(
-                ChatService._process_uploaded_file,
-                request.app.state.storage_manager,
-                request.app.state.agent_server.mcp_client,
-                file_content,
-                filename,
-                file.content_type or "application/octet-stream",
-                meta,
-                file_id,
+            # Schedule async background task
+            asyncio.create_task(
+                ChatService._process_uploaded_file_async(
+                    request.app.state.storage_manager,
+                    request.app.state.agent_server.mcp_client,
+                    file_content,
+                    filename,
+                    file.content_type or "application/octet-stream",
+                    meta,
+                    file_id,
+                )
             )
 
             return response
@@ -347,6 +349,122 @@ Subject:"""
             error_msg = f"Background task failed: {e}"
             logger.exception(error_msg)
             update_status(FileUploadStatus.FAILED, error_msg=error_msg)
+
+    @staticmethod
+    async def _process_uploaded_file_async(
+        storage_manager,
+        mcp_client,
+        file_content: bytes,
+        filename: str,
+        content_type: str,
+        meta: UploadMetadata,
+        file_id: str,
+    ):
+        """Async version of file processing for proper MCP client session handling"""
+        from mcp_host.database.db import get_async_db
+
+        async def update_status_async(status: FileUploadStatus, blob_name: str = None, error_msg: str = None):
+            """Update file upload status using async database session"""
+            async for db in get_async_db():
+                try:
+                    from sqlalchemy import select
+                    result = await db.execute(
+                        select(FileUpload).where(FileUpload.id == file_id)
+                    )
+                    file_record = result.scalar_one_or_none()
+
+                    if file_record:
+                        file_record.status = status
+                        file_record.updated_at = datetime.now(timezone.utc)
+                        if blob_name:
+                            file_record.blob_name = blob_name
+                        if error_msg:
+                            file_record.error_message = error_msg
+                        await db.commit()
+                except Exception as e:
+                    logger.error(f"Failed to update file status: {e}")
+                    await db.rollback()
+                finally:
+                    await db.close()
+                break
+
+        try:
+            # Update status to PROCESSING
+            await update_status_async(FileUploadStatus.PROCESSING)
+
+            upload_result = storage_manager.upload_file(
+                file_content=file_content,
+                student_id=meta.student_id,
+                filename=filename,
+                subject=meta.subject,
+                metadata={
+                    "topic": meta.topic,
+                    "difficulty_level": str(meta.difficulty_level),
+                    "content_type": content_type,
+                    "document_title": meta.document_title,
+                },
+            )
+
+            if upload_result.get("status") != "success":
+                error_msg = f"Background upload failed: {upload_result}"
+                logger.error(error_msg)
+                await update_status_async(FileUploadStatus.FAILED, error_msg=error_msg)
+                return
+
+            blob_name = upload_result["blob_name"]
+            logger.info(f"✅ File uploaded to Azure: {blob_name}")
+
+            # Check if mcp_client exists and has sessions
+            if not mcp_client:
+                error_msg = "MCP client not available"
+                logger.error(error_msg)
+                await update_status_async(FileUploadStatus.FAILED, blob_name=blob_name, error_msg=error_msg)
+                return
+
+            mcp_sessions = getattr(mcp_client, "sessions", None)
+            if not mcp_sessions:
+                error_msg = "MCP sessions not available - client may not be fully initialized"
+                logger.error(error_msg)
+                await update_status_async(FileUploadStatus.FAILED, blob_name=blob_name, error_msg=error_msg)
+                return
+
+            # Check if the required server exists in sessions
+            server_name = "TutoringRAGSystemMCPServer"
+            if server_name not in mcp_sessions:
+                available_servers = list(mcp_sessions.keys()) if mcp_sessions else []
+                error_msg = f"Server '{server_name}' not found in MCP sessions. Available: {available_servers}"
+                logger.error(error_msg)
+                await update_status_async(FileUploadStatus.FAILED, blob_name=blob_name, error_msg=error_msg)
+                return
+
+            logger.info(f"🔧 Calling MCP tool: upload_student_file")
+
+            # Call MCP tool directly (already in async context)
+            await call_mcp_server_tool(
+                sessions=mcp_sessions,
+                server_name=server_name,
+                tool_name="upload_student_file",
+                tool_args={
+                    "user_id": meta.student_id,
+                    "filename": filename,
+                    "file_id": blob_name,
+                    "subject": meta.subject,
+                    "topic": meta.topic,
+                    "difficulty_level": meta.difficulty_level,
+                    "document_title": meta.document_title,
+                },
+            )
+
+            logger.info(f"✅ MCP tool call completed successfully")
+
+            # Update status to COMPLETED
+            await update_status_async(FileUploadStatus.COMPLETED, blob_name=blob_name)
+            logger.info(f"✅ Completed background processing for {filename}")
+
+        except Exception as e:
+            error_msg = f"Background task failed: {e}"
+            logger.exception(error_msg)
+            await update_status_async(FileUploadStatus.FAILED, error_msg=error_msg)
 
     @staticmethod
     async def chat_endpoint(
